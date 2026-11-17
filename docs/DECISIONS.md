@@ -1,5 +1,7 @@
 # Decisions
 
+T1.2: dùng Spring Security starter và OAuth2 JOSE (Nimbus) để ký/xác minh JWT HS256 bằng secret môi trường tối thiểu 32 byte; không tự cài thuật toán JWT. Thêm spring-security-test để test nền tảng có principal/CSRF hợp lệ sau khi bật security. Access token gắn phiên và kiểm tra trạng thái thu hồi trong DB. Refresh xoay vòng, mỗi token có hạn 7 ngày; logout thu hồi phiên, đổi/đặt lại mật khẩu thu hồi mọi phiên. Notifier stub không ghi token ở bất kỳ profile nào. Rate limit bộ nhớ theo IP kết nối trực tiếp, dành cho một instance (không tin X-Forwarded-For). CORS mặc định không cho origin khác; whitelist cấu hình được.
+
 | ID | Quyết định | Lý do |
 |---|---|---|
 | ADR-001 | Modular monolith | Tách ranh giới nghiệp vụ, đơn giản triển khai MVP. |

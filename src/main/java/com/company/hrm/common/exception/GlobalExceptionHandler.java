@@ -45,6 +45,16 @@ public class GlobalExceptionHandler {
         return problem(exception.getErrorCode(), exception.getMessage(), request);
     }
 
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    ProblemDetail handleUnreadable(HttpServletRequest request) {
+        return problem(ErrorCode.HRM_VALIDATION_ERROR, "Dữ liệu yêu cầu không hợp lệ", request);
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    ProblemDetail handleAccessDenied(HttpServletRequest request) {
+        return problem(ErrorCode.HRM_ACCESS_DENIED, "Không có quyền truy cập", request);
+    }
+
     @ExceptionHandler({ObjectOptimisticLockingFailureException.class, DataIntegrityViolationException.class})
     ProblemDetail handleConflict(RuntimeException exception, HttpServletRequest request) {
         return problem(ErrorCode.HRM_CONFLICT, "Dữ liệu đã được thay đổi hoặc đang xung đột", request);

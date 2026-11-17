@@ -1,5 +1,7 @@
 # Tiến độ
 
+T1.2 hoàn thành: Spring Security/JWT và 6 endpoint xác thực; BCrypt, khóa nội bộ 5 lần sai/15 phút, lỗi 401 thống nhất và dummy hash, audit khóa kèm IP. Refresh hash xoay vòng 7 ngày/token, phát hiện replay thu hồi cả chuỗi; access 15 phút kiểm tra phiên để thu hồi ngay. Reset hash một lần/30 phút qua Notifier stub không log; đổi/reset mật khẩu thu hồi mọi phiên. Rate limit cấu hình 10/phút/IP với 429/Retry-After, CORS whitelist, Swagger/health public chỉ dev. AuditorAware lấy người dùng hiện tại; sửa điều kiện JPA auditing và dùng Clock. Migration V5 thêm trạng thái khóa và auth_tokens. Verify: 30 pass, 0 fail/error/skipped, gồm Testcontainers DB trống, refresh đồng thời, cô lập phiên, hết hạn/thu hồi, rate limit, reset, dev security. Giới hạn: Notifier chưa gửi email thật; rate limit dành cho một instance/IP kết nối trực tiếp. Test cũ cập nhật số migration và principal/CSRF hợp lệ, không giảm assert.
+
 | Task | Trạng thái | Ghi chú |
 |---|---|---|
 | T0.1 | Hoàn thành | Đã khởi tạo Maven/Spring Boot, package và profile; chốt UUIDv7 native PostgreSQL tại ADR-003. `./mvnw clean verify` xanh với Java 21.0.13: 1 test pass (`HrmApplicationContextTest`), 0 fail. Context test hiện chạy không có `DataSource`; Docker/Testcontainers sẽ cần cho các task có migration. |

@@ -17,6 +17,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(ErrorHandlingTestController.class)
+@org.springframework.security.test.context.support.WithMockUser
 @Import({GlobalExceptionHandler.class, TimeConfig.class})
 class GlobalExceptionHandlerWebMvcTest {
 
@@ -26,6 +27,7 @@ class GlobalExceptionHandlerWebMvcTest {
     @Test
     void should_return_field_errors_when_validation_fails() throws Exception {
         mockMvc.perform(post("/test/errors/validation")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"\"}"))
                 .andExpect(status().isBadRequest())

@@ -1,5 +1,17 @@
 # HRM
 
+### Xác thực (T1.2)
+
+Đặt `HRM_JWT_SECRET` bằng secret ngẫu nhiên riêng tối thiểu 32 byte trước khi chạy.
+API POST dưới `/api/v1/auth`: `login` (email/password), `refresh` (token),
+`logout` (Bearer), `change-password` (Bearer + oldPassword/password),
+`forgot-password` (email), `reset-password` (token/password).
+Notifier hiện là stub không gửi email và không log token. Access token 15 phút;
+refresh xoay vòng, mỗi token hạn 7 ngày. Logout thu hồi phiên, đổi/reset mật khẩu
+thu hồi mọi phiên. Các policy nằm trong `hrm.auth` ở application.yml.
+Rate limit 10/phút theo IP kết nối trực tiếp, bộ nhớ của một instance; proxy và
+nhiều instance cần cấu hình triển khai riêng. Swagger và health mở công khai chỉ ở dev.
+
 Backend quản lý nhân sự, xây dựng bằng Java 21, Spring Boot và PostgreSQL 16.
 Kiến trúc và các quy ước kỹ thuật được mô tả tại
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

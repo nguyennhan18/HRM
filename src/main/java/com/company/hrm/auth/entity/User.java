@@ -24,6 +24,18 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private boolean enabled = true;
 
+    private int failedAttempts;
+    private java.time.Instant lockedUntil;
+
+    public boolean isLocked(java.time.Instant now) { return lockedUntil != null && lockedUntil.isAfter(now); }
+    public int fail(java.time.Instant now) {
+        if (lockedUntil != null && !lockedUntil.isAfter(now)) clearFailures();
+        return ++failedAttempts;
+    }
+    public void lockUntil(java.time.Instant until) { lockedUntil = until; }
+    public void clearFailures() { failedAttempts = 0; lockedUntil = null; }
+    public void changePassword(String hash) { passwordHash = hash; clearFailures(); }
+
     @ManyToMany
     @JoinTable(name = "user_roles",
             joinColumns = @JoinColumn(name = "user_id"),

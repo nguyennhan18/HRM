@@ -14,6 +14,16 @@ springdoc:
     path: /swagger-ui.html
 
 hrm:
+  auth:
+    secret: ${HRM_JWT_SECRET:}
+    access-ttl: 15m
+    refresh-ttl: 7d
+    reset-ttl: 30m
+    lock-threshold: 5
+    lock-duration: 15m
+    rate-limit: 10
+    rate-window: 1m
+    cors-origins: []
   admin:
     email: ${HRM_ADMIN_EMAIL:}
     password: ${HRM_ADMIN_PASSWORD:}

@@ -15,6 +15,12 @@ import org.springframework.boot.test.mock.mockito.MockBean;
         + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,"
         + "org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration")
 class HrmApplicationContextTest {
+    @MockBean
+    private org.springframework.data.jpa.mapping.JpaMetamodelMappingContext jpaMappingContext;
+    @MockBean
+    private com.company.hrm.auth.service.AuthService authService;
+    @MockBean
+    private com.company.hrm.auth.repository.AuthTokenRepository authTokenRepository;
 
     @MockBean
     private AuditLogRepository auditLogRepository;
