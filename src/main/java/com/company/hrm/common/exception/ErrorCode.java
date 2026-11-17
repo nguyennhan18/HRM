@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 
 public enum ErrorCode {
     HRM_AUTHENTICATION_FAILED(HttpStatus.UNAUTHORIZED),
+    HRM_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS),
     HRM_ACCESS_DENIED(HttpStatus.FORBIDDEN),
     HRM_VALIDATION_ERROR(HttpStatus.BAD_REQUEST),
     HRM_RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND),

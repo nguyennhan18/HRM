@@ -8,6 +8,7 @@ public interface AuthService {
     void changePassword(UUID user, Change request);
     void forgot(String email);
     void reset(Reset request);
+    java.util.Set<String> roles(UUID user);
     boolean active(UUID user, UUID family);
 }
 

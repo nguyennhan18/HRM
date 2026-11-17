@@ -118,6 +118,10 @@ public class AuthServiceImpl implements AuthService {
                 && t.getPurpose().equals("REFRESH") && !t.isRevoked() && !t.isUsed()
                 && t.getExpiresAt().isAfter(clock.instant()));
     }
+    @Override @Transactional(readOnly=true)
+    public Set<String> roles(UUID user) {
+        return users.findRoleCodesById(user);
+    }
     private String randomToken() {
         byte[] bytes=new byte[32]; random.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);

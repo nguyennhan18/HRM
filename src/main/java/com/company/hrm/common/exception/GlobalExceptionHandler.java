@@ -1,13 +1,9 @@
 package com.company.hrm.common.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
-import java.net.URI;
 import java.time.Clock;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -22,7 +18,6 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-    private static final String CORRELATION_ID_HEADER = "X-Correlation-ID";
 
     private final Clock clock;
 
@@ -76,18 +71,10 @@ public class GlobalExceptionHandler {
     }
 
     private ProblemDetail problem(ErrorCode errorCode, String detail, HttpServletRequest request, String traceId) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(errorCode.status(), detail);
-        problem.setTitle(errorCode.status().getReasonPhrase());
-        problem.setType(URI.create("https://hrm.company.com/problems/" + errorCode.name().toLowerCase()));
-        problem.setInstance(URI.create(request.getRequestURI()));
-        problem.setProperty("code", errorCode.name());
-        problem.setProperty("timestamp", Instant.now(clock).toString());
-        problem.setProperty("traceId", traceId);
-        return problem;
+        return ApiProblems.create(errorCode, detail, request, clock, traceId);
     }
 
     private String traceId(HttpServletRequest request) {
-        String correlationId = request.getHeader(CORRELATION_ID_HEADER);
-        return correlationId == null || correlationId.isBlank() ? UUID.randomUUID().toString() : correlationId;
+        return ApiProblems.traceId(request);
     }
 }

@@ -35,8 +35,8 @@ public class SecurityConfiguration {
             return cors;
         })).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
           .requestCache(c->c.disable())
-          .exceptionHandling(e->e.authenticationEntryPoint((q,r,x)->problem(mapper,r,401,"HRM_AUTHENTICATION_FAILED"))
-            .accessDeniedHandler((q,r,x)->problem(mapper,r,403,"HRM_ACCESS_DENIED")));
+          .exceptionHandling(e->e.authenticationEntryPoint((q,r,x)->problem(mapper,q,r,clock,401,"HRM_AUTHENTICATION_FAILED"))
+            .accessDeniedHandler((q,r,x)->problem(mapper,q,r,clock,403,"HRM_ACCESS_DENIED")));
         http.authorizeHttpRequests(a-> {
             if(env.matchesProfiles("dev")) a.requestMatchers("/swagger-ui/**","/swagger-ui.html","/v3/api-docs/**","/actuator/health","/actuator/health/**").permitAll();
             a.requestMatchers("/api/v1/auth/login","/api/v1/auth/refresh","/api/v1/auth/forgot-password","/api/v1/auth/reset-password").permitAll();
@@ -48,7 +48,7 @@ public class SecurityConfiguration {
                     throws ServletException,IOException {
                 if(q.getRequestURI().startsWith("/api/v1/auth/")) {
                     long retry=limit(q.getRemoteAddr());
-                    if(retry>0) {r.setHeader("Retry-After",Long.toString(retry)); problem(mapper,r,429,"HRM_RATE_LIMITED");return;}
+                    if(retry>0) {r.setHeader("Retry-After",Long.toString(retry)); problem(mapper,q,r,clock,429,"HRM_RATE_LIMITED");return;}
                 }
                 String header=q.getHeader("Authorization");
                 if(header!=null && header.startsWith("Bearer ")) {
@@ -56,12 +56,13 @@ public class SecurityConfiguration {
                         var token=jwt.decode(header.substring(7));
                         var user=UUID.fromString(token.getSubject());
                         var family=UUID.fromString(token.getClaimAsString("sid"));
-                        if(!auth.active(user,family)) {problem(mapper,r,401,"HRM_AUTHENTICATION_FAILED");return;}
-                        var authentication=new UsernamePasswordAuthenticationToken(user.toString(),null,List.of());
+                        if(!auth.active(user,family)) {problem(mapper,q,r,clock,401,"HRM_AUTHENTICATION_FAILED");return;}
+                        var authentication=new UsernamePasswordAuthenticationToken(user.toString(),null,auth.roles(user).stream()
+                            .map(role -> new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + role)).toList());
                         authentication.setDetails(family);
                         SecurityContextHolder.getContext().setAuthentication(authentication);
                     } catch(org.springframework.security.oauth2.jwt.JwtException | IllegalArgumentException ex) {
-                        problem(mapper,r,401,"HRM_AUTHENTICATION_FAILED");return;
+                        problem(mapper,q,r,clock,401,"HRM_AUTHENTICATION_FAILED");return;
                     }
                 }
                 chain.doFilter(q,r);
@@ -80,11 +81,12 @@ public class SecurityConfiguration {
         final java.time.Instant end; int count;
         Window(java.time.Instant end){this.end=end;}
     }
-    private static void problem(ObjectMapper mapper,HttpServletResponse response,int status,String code) throws IOException {
+    private static void problem(ObjectMapper mapper,HttpServletRequest request,HttpServletResponse response,Clock clock,int status,String code) throws IOException {
         response.setStatus(status);response.setContentType("application/problem+json");
-        var p=org.springframework.http.ProblemDetail.forStatusAndDetail(org.springframework.http.HttpStatusCode.valueOf(status),
-            status==429?"Quá nhiều yêu cầu":status==403?"Không có quyền truy cập":"Thông tin xác thực không hợp lệ");
-        p.setProperty("code",code);
+        var p=com.company.hrm.common.exception.ApiProblems.create(
+            com.company.hrm.common.exception.ErrorCode.valueOf(code),
+            status==429?"Quá nhiều yêu cầu":status==403?"Không có quyền truy cập":"Thông tin xác thực không hợp lệ",
+            request,clock,com.company.hrm.common.exception.ApiProblems.traceId(request));
         mapper.writeValue(response.getOutputStream(),p);
     }
 }

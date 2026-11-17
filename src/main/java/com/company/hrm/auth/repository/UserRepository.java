@@ -14,6 +14,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @org.springframework.data.jpa.repository.Query("select u from User u where u.id = :id")
     Optional<User> lockById(UUID id);
 
+    @org.springframework.data.jpa.repository.Query("select r.code from User u join u.roles r where u.id = :id and u.enabled = true")
+    java.util.Set<String> findRoleCodesById(UUID id);
+
     boolean existsByRoles_Code(String roleCode);
 
     Optional<User> findByEmail(String email);
