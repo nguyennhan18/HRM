@@ -1,4 +1,8 @@
 spring:
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: validate
+
+hrm:
+  auth:
+    secret: test-only-secret-at-least-thirty-two-bytes
