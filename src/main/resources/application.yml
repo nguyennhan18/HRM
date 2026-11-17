@@ -13,6 +13,11 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
+hrm:
+  admin:
+    email: ${HRM_ADMIN_EMAIL:}
+    password: ${HRM_ADMIN_PASSWORD:}
+
 management:
   endpoints:
     web:

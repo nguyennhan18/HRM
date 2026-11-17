@@ -1,6 +1,8 @@
 package com.company.hrm;
 
 import com.company.hrm.common.audit.AuditLogRepository;
+import com.company.hrm.auth.repository.RoleRepository;
+import com.company.hrm.auth.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
@@ -16,6 +18,12 @@ class HrmApplicationContextTest {
 
     @MockBean
     private AuditLogRepository auditLogRepository;
+
+    @MockBean
+    private UserRepository userRepository;
+
+    @MockBean
+    private RoleRepository roleRepository;
 
     @Test
     void contextLoads() {
