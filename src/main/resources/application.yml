@@ -5,6 +5,30 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+hrm:
+  employee:
+    hmac-key: ${HRM_EMPLOYEE_HMAC_KEY}
+  auth:
+    secret: ${HRM_JWT_SECRET:}
+    access-ttl: 15m
+    refresh-ttl: 7d
+    reset-ttl: 30m
+    lock-threshold: 5
+    lock-duration: 15m
+    rate-limit: 10
+    rate-window: 1m
+    cors-origins: []
+  admin:
+    email: ${HRM_ADMIN_EMAIL:}
+    password: ${HRM_ADMIN_PASSWORD:}
 
 management:
   endpoints:
