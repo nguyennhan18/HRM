@@ -21,8 +21,9 @@ public class PositionServiceImpl implements PositionService {
     private final PositionRepository repository;
     private final PositionMapper mapper;
     private final AuditService audit;
-    public PositionServiceImpl(PositionRepository repository, PositionMapper mapper, AuditService audit) {
-        this.repository = repository; this.mapper = mapper; this.audit = audit;
+    private final EmployeeAssignmentGuard employeeGuard;
+    public PositionServiceImpl(PositionRepository repository, PositionMapper mapper, AuditService audit, EmployeeAssignmentGuard employeeGuard) {
+        this.repository = repository; this.mapper = mapper; this.audit = audit; this.employeeGuard = employeeGuard;
     }
     public Page<PositionResponse> list(Pageable page) {
         return repository.findAll(OrganizationPages.checked(page)).map(mapper::toResponse);
@@ -53,9 +54,10 @@ public class PositionServiceImpl implements PositionService {
         return after;
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     @PreAuthorize("hasAnyRole('HR', 'ADMIN')")
     public void delete(UUID id, String traceId) {
+        employeeGuard.beforePositionDelete(id);
         var entity = locked(id);
         var before = mapper.toResponse(entity);
         repository.delete(entity);

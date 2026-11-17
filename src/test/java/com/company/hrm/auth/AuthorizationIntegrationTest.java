@@ -53,7 +53,7 @@ class AuthorizationIntegrationTest extends AbstractIntegrationTest {
         r.add("hrm.auth.rate-limit", () -> "1000");
     }
     @TestConfiguration static class Configuration {
-        @Bean FakeRelations employeeRelations() { return new FakeRelations(); }
+        @Bean @Primary FakeRelations employeeRelations() { return new FakeRelations(); }
         @Bean SampleService sampleService() { return new SampleService(); }
     }
     static class FakeRelations implements EmployeeRelations {

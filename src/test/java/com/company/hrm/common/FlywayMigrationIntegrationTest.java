@@ -24,8 +24,40 @@ class FlywayMigrationIntegrationTest extends AbstractIntegrationTest {
                 .load();
         flyway.migrate();
 
-        assertThat(flyway.info().applied()).hasSize(6);
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("6");
+        assertThat(flyway.info().applied()).hasSize(7);
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("7");
+    }
+
+    @Test
+    void should_upgrade_existing_v6_data_and_start_employee_sequence_at_one() throws Exception {
+        String schema = "employee_upgrade";
+        var configuration = Flyway.configure()
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .schemas(schema).defaultSchema(schema).locations("classpath:db/migration");
+        configuration.target("6").load().migrate();
+        try (Connection connection = DriverManager.getConnection(
+                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             Statement statement = connection.createStatement()) {
+            connection.setSchema(schema);
+            statement.executeUpdate("""
+                    insert into departments(id, code, name, created_at, updated_at, created_by, updated_by, version)
+                    values ('00000000-0000-4000-8000-000000000001', 'EXISTING', 'Phòng cũ',
+                        current_timestamp, current_timestamp, 'test', 'test', 0)
+                    """);
+            configuration.target("7").load().migrate();
+            try (ResultSet result = statement.executeQuery("select count(*) from departments where code = 'EXISTING'")) {
+                result.next();
+                assertThat(result.getInt(1)).isEqualTo(1);
+            }
+            try (ResultSet result = statement.executeQuery("select nextval('employee_code_seq')")) {
+                result.next();
+                assertThat(result.getLong(1)).isEqualTo(1);
+            }
+            try (ResultSet result = statement.executeQuery("select count(*) from employees")) {
+                result.next();
+                assertThat(result.getInt(1)).isZero();
+            }
+        }
     }
 
     @Test

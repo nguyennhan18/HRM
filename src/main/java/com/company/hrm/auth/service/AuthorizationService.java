@@ -24,7 +24,7 @@ public class AuthorizationService {
         if (roles.contains("ROLE_ADMIN") || roles.contains("ROLE_HR")) return true;
         if (!roles.contains("ROLE_MANAGER") && !roles.contains("ROLE_EMPLOYEE")) return false;
         var query = relations.getIfAvailable();
-        // Fail closed until the Employee module supplies the port.
+        // Fail closed if the Employee adapter is unavailable.
         if (query == null) return false;
         UUID userId;
         try { userId = UUID.fromString(authentication.getName()); }

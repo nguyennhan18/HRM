@@ -14,6 +14,8 @@ springdoc:
     path: /swagger-ui.html
 
 hrm:
+  employee:
+    hmac-key: ${HRM_EMPLOYEE_HMAC_KEY}
   auth:
     secret: ${HRM_JWT_SECRET:}
     access-ttl: 15m

@@ -23,10 +23,11 @@ public class DepartmentServiceImpl implements DepartmentService {
     private final DepartmentRepository repository;
     private final DepartmentMapper mapper;
     private final AuditService audit;
+    private final EmployeeAssignmentGuard employeeGuard;
     private final DepartmentTreeLock tree;
     private final Clock clock;
-    public DepartmentServiceImpl(DepartmentRepository repository, DepartmentMapper mapper, AuditService audit, DepartmentTreeLock tree, Clock clock) {
-        this.repository = repository; this.mapper = mapper; this.audit = audit;
+    public DepartmentServiceImpl(DepartmentRepository repository, DepartmentMapper mapper, AuditService audit, DepartmentTreeLock tree, Clock clock, EmployeeAssignmentGuard employeeGuard) {
+        this.repository = repository; this.mapper = mapper; this.audit = audit; this.employeeGuard = employeeGuard;
         this.tree = tree; this.clock = clock;
     }
     public Page<DepartmentResponse> list(UUID parentId, boolean roots, Pageable page) {
@@ -70,6 +71,7 @@ public class DepartmentServiceImpl implements DepartmentService {
     @Transactional(isolation = Isolation.READ_COMMITTED)
     @PreAuthorize("hasAnyRole('HR', 'ADMIN')")
     public void delete(UUID id, String traceId) {
+        employeeGuard.beforeDepartmentDelete(id);
         tree.lockAndValidate(id, null);
         var entity = active(id);
         if (repository.existsByParentIdAndDeletedAtIsNull(id)) {
