@@ -1,0 +1,1 @@
+-- Baseline Flyway migration. No business schema or PostgreSQL extensions are required yet.
