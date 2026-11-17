@@ -30,7 +30,7 @@ public class SecurityConfiguration {
         http.csrf(c->c.disable()).cors(c->c.configurationSource(request-> {
             var cors=new CorsConfiguration();
             cors.setAllowedOrigins(props.corsOrigins());
-            cors.setAllowedMethods(List.of("POST","GET","OPTIONS"));
+            cors.setAllowedMethods(List.of("POST","GET","PUT","DELETE","OPTIONS"));
             cors.setAllowedHeaders(List.of("Authorization","Content-Type"));
             return cors;
         })).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
