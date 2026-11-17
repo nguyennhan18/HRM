@@ -35,6 +35,11 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    ProblemDetail handleParameterType(HttpServletRequest request) {
+        return problem(ErrorCode.HRM_VALIDATION_ERROR, "Tham số yêu cầu không hợp lệ", request);
+    }
+
     @ExceptionHandler(BusinessException.class)
     ProblemDetail handleBusiness(BusinessException exception, HttpServletRequest request) {
         return problem(exception.getErrorCode(), exception.getMessage(), request);

@@ -6,8 +6,10 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import java.util.UUID;
 
-/** T2.1 foundation only; onboarding and REST CRUD belong to T2.2/T2.3. */
+/** Employee foundation and scoped listing; onboarding remains separate. */
 public interface EmployeeService {
+    org.springframework.data.domain.Page<EmployeeResponse> list(String name, UUID departmentId, UUID positionId,
+            com.company.hrm.employee.entity.EmployeeStatus status, org.springframework.data.domain.Pageable page);
     EmployeeResponse create(@NotNull @Valid CreateEmployeeRequest request, String traceId);
     EmployeeResponse get(UUID id);
     EmployeeResponse changeManager(UUID id, UUID managerId, String traceId);

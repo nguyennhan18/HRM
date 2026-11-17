@@ -77,6 +77,27 @@ public class EmployeeServiceImpl implements EmployeeService {
         return after;
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER', 'EMPLOYEE')")
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public org.springframework.data.domain.Page<EmployeeResponse> list(String name, UUID departmentId,
+            UUID positionId, com.company.hrm.employee.entity.EmployeeStatus status,
+            org.springframework.data.domain.Pageable page) {
+        var checked = EmployeePages.checked(page);
+        var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        var roles = authentication.getAuthorities().stream().map(a -> a.getAuthority()).toList();
+        java.util.List<UUID> visible = null;
+        if (!roles.contains("ROLE_ADMIN") && !roles.contains("ROLE_HR")) {
+            try {
+                visible = employees.visibleIds(UUID.fromString(authentication.getName()),
+                        roles.contains("ROLE_MANAGER"), roles.contains("ROLE_EMPLOYEE"));
+            } catch (IllegalArgumentException ex) {
+                visible = java.util.List.of();
+            }
+        }
+        return employees.findAll(EmployeeSpecification.matching(name, departmentId, positionId, status, visible), checked)
+                .map(mapper::toResponse);
+    }
+
     private String nextCode() {
         try {
             long value = lock.nextCode();
