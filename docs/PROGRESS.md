@@ -16,6 +16,14 @@ T1.2 hoàn thành: Spring Security/JWT và 6 endpoint xác thực; BCrypt, khóa
 
 ## Việc còn tồn
 
+### T2.1 — Rà soát bổ sung ngày 2026-11-18
+
+- Trạng thái: hoàn thành rà soát Employee, authz và kiểm tra xóa phòng ban; không phát hiện thay đổi nghiệp vụ/schema cần bổ sung. Giữ nguyên V7 và ADR-012 (HMAC + 4 số cuối, chưa mã hóa AES-GCM); không mở rộng sang onboarding/REST CRUD.
+- Verify trước khi sửa: `./mvnw clean verify` BUILD SUCCESS, **106 pass, 0 fail/error/skipped**, 34.308 giây.
+- Commit mới `dc301ce` trên `feature/T2.1-employee-profile` (không amend `ec2c8f4`): thêm `EmployeeHmacConfigurationTest`, nạp `application.yml` production vào Spring context cô lập với secret máy phát triển và cấu hình test. Bốn ca từ chối khởi tạo khi biến `HRM_EMPLOYEE_HMAC_KEY` thiếu/rỗng/toàn khoảng trắng/quá ngắn; một ca xác nhận HMAC thực sự dùng khóa môi trường hợp lệ. Khóa test sinh ngẫu nhiên; không thêm secret, dependency hoặc sửa test cũ.
+- Lượt verify sau thêm test gặp 7 lỗi khởi tạo context (27 test chạy, 20 pass, 0 failure, 7 error, 0 skipped); cả 5 ca mới pass. `javap` xác nhận `EmployeeMapperImpl.class` chứa lỗi biên dịch Eclipse do Java language server ghi đè output Maven. Tạm dừng riêng tiến trình language server bằng STOP, tự khôi phục bằng CONT qua shell trap sau build; đã xác nhận tiến trình chạy lại, không đổi cấu hình dự án.
+- Verify cuối: `./mvnw clean verify` **BUILD SUCCESS, 111 pass, 0 fail/error/skipped**, 32.930 giây; bao gồm test PostgreSQL về email/CCCD trùng, sequence, quyền trên dữ liệu thật, vòng lặp quản lý, chặn xóa phòng ban và migration DB trống/nâng V6. Không có migration mới. Bước tiếp theo đề xuất: T2.2; chưa thực hiện.
+
 - T1.3 → T2.1: **Đã giải quyết** bằng `EmployeeRelationsAdapter` đọc Employee thật. `user_id` nullable/unique/FK khác employee ID; T2.2 sẽ tạo/liên kết user khi kích hoạt. Test mới kiểm phạm vi trực tiếp/gián tiếp, cộng quyền, thiếu liên kết, nút xóa mềm và cây lỗi bằng dữ liệu PostgreSQL thật.
 - Quyết định T1.3 đã được người dùng duyệt: cộng quyền khi có nhiều role; MANAGER đơn lẻ không xem chính mình, MANAGER + EMPLOYEE được xem; endpoint mẫu chỉ tồn tại trong test. ADMIN/HR không có ca 403 do sai phạm vi vì được xem tất cả. Không triển khai endpoint hồ sơ nhân sự hay quyền nghiệp vụ khác trong task này.
 
