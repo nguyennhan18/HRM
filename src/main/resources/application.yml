@@ -5,6 +5,13 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
 
 management:
   endpoints:
