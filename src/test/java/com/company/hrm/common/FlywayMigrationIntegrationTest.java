@@ -24,8 +24,44 @@ class FlywayMigrationIntegrationTest extends AbstractIntegrationTest {
                 .load();
         flyway.migrate();
 
-        assertThat(flyway.info().applied()).hasSize(9);
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("9");
+        assertThat(flyway.info().applied()).hasSize(10);
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("10");
+    }
+
+    @Test
+    void should_upgrade_v9_preserve_employee_and_enforce_document_constraints() throws Exception {
+        String schema = "document_upgrade";
+        var configuration = Flyway.configure()
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .schemas(schema).defaultSchema(schema).locations("classpath:db/migration");
+        configuration.target("9").load().migrate();
+        try (var connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             var statement = connection.createStatement()) {
+            connection.setSchema(schema);
+            statement.executeUpdate("""
+                    insert into employees(id,code,full_name,status,created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000003','NV000001','Nhân viên mẫu','DRAFT',
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """);
+            configuration.target("10").load().migrate();
+            try (var rows = statement.executeQuery("select count(*) from employees where code='NV000001'")) {
+                rows.next(); assertThat(rows.getInt(1)).isEqualTo(1);
+            }
+            String insert = """
+                    insert into employee_documents(id,employee_id,type,original_name,stored_name,size,content_type,
+                        checksum,created_at,updated_at,created_by,updated_by,version)
+                    values (gen_random_uuid(),'00000000-0000-4000-8000-000000000003','CV','cv.pdf',
+                        gen_random_uuid()::text,%s,'application/pdf',repeat('a',64),current_timestamp,current_timestamp,'test','test',0)
+                    """;
+            for (long size : new long[]{0, -1, 10485761}) {
+                org.assertj.core.api.Assertions.assertThatThrownBy(() -> statement.executeUpdate(insert.formatted(size)))
+                        .isInstanceOf(java.sql.SQLException.class);
+            }
+            statement.executeUpdate(insert.formatted(10485760));
+            try (var rows = statement.executeQuery("select count(*) from employee_documents")) {
+                rows.next(); assertThat(rows.getInt(1)).isEqualTo(1);
+            }
+        }
     }
 
     @Test

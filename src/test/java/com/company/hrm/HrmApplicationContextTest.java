@@ -15,6 +15,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
         + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,"
         + "org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration")
 class HrmApplicationContextTest {
+    @MockBean com.company.hrm.employee.repository.EmployeeDocumentRepository documents;
     @MockBean com.company.hrm.contract.repository.ContractRepository contracts;
     @MockBean com.company.hrm.employee.repository.EmployeeRepository employees;
     @MockBean com.company.hrm.employee.repository.EmployeeWriteLock employeeLock;

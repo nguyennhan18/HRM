@@ -70,6 +70,17 @@ public class GlobalExceptionHandler {
         return problem(ErrorCode.HRM_CONFLICT, "Dữ liệu đã được thay đổi hoặc đang xung đột", request);
     }
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    ProblemDetail handleUploadSize(HttpServletRequest request) {
+        return problem(ErrorCode.DOCUMENT_TOO_LARGE, "Tài liệu vượt dung lượng cho phép", request);
+    }
+
+    @ExceptionHandler({org.springframework.web.multipart.MultipartException.class,
+            org.springframework.web.multipart.support.MissingServletRequestPartException.class})
+    ProblemDetail handleMultipart(HttpServletRequest request) {
+        return problem(ErrorCode.DOCUMENT_INVALID_FILE, "Yêu cầu tải lên không hợp lệ", request);
+    }
+
     @ExceptionHandler(Exception.class)
     ProblemDetail handleUnexpected(Exception exception, HttpServletRequest request) {
         String traceId = traceId(request);

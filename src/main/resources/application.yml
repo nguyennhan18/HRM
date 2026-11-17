@@ -1,4 +1,9 @@
 spring:
+  servlet:
+    multipart:
+      max-file-size: ${HRM_DOCUMENT_MAX_SIZE:10MB}
+      # Multipart envelope needs headroom above the per-file limit.
+      max-request-size: 11MB
   application:
     name: hrm
   jpa:
@@ -14,6 +19,8 @@ springdoc:
     path: /swagger-ui.html
 
 hrm:
+  documents:
+    directory: ${HRM_DOCUMENT_DIRECTORY:./data/documents}
   employee:
     hmac-key: ${HRM_EMPLOYEE_HMAC_KEY}
   auth:
@@ -35,3 +42,8 @@ management:
     web:
       exposure:
         include: health,info
+
+server:
+  tomcat:
+    # Drain rejected uploads within the request envelope so clients receive ProblemDetail.
+    max-swallow-size: 11MB
