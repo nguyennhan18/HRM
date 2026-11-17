@@ -33,6 +33,12 @@ class ErrorHandlingTestController {
         throw new BusinessException(ErrorCode.HRM_UNPROCESSABLE_ENTITY, "Ngày kết thúc phải sau ngày bắt đầu");
     }
 
+    @GetMapping("/contract-overlap")
+    void overlap() {
+        throw new org.springframework.dao.DataIntegrityViolationException("hidden DB detail",
+                new java.sql.SQLException("hidden DB detail", "23P01"));
+    }
+
     @GetMapping("/unexpected")
     void unexpected() {
         throw new IllegalStateException("sensitive internal detail");

@@ -22,3 +22,31 @@ T1.2: dùng Spring Security starter và OAuth2 JOSE (Nimbus) để ký/xác minh
 - **ADR-013 — Dữ liệu và mã:** Employee dùng UUIDv7 theo ADR-003, mã `NV` + 6 chữ số do service lấy từ PostgreSQL sequence `employee_code_seq` (1–999999, NO CYCLE). Chấp nhận khoảng trống do rollback, không tái sử dụng; hết sequence báo lỗi. DRAFT chỉ bắt buộc họ tên; các trường hồ sơ khác nullable, giới tính MALE/FEMALE/OTHER hoặc null. Email trim + lowercase (chuỗi rỗng thành null); unique email công ty và CCCD áp dụng cả hồ sơ đã xóa mềm. Số tài khoản có index hash để tra trùng, không unique. `user_id` nullable, unique, FK; T2.1 chưa tạo/liên kết tài khoản qua API.
 - **ADR-014 — Quan hệ và khóa:** giữ ma trận cộng quyền T1.3: ADMIN/HR tất cả, MANAGER cấp dưới trực tiếp/gián tiếp, EMPLOYEE chính mình; MANAGER đơn lẻ không xem chính mình. Adapter đọc quan hệ Employee thật và loại các nút đã xóa mềm khỏi ánh xạ user/chuỗi quản lý. Mọi thao tác ghi Employee và kiểm tra xóa tổ chức dùng cùng PostgreSQL transaction advisory lock `(202602, 1)`, lấy trước khi đọc cây/khóa hàng tổ chức, với READ COMMITTED; kiểm lại toàn bộ chuỗi quản lý sau khóa. Khóa tự nhả khi commit/rollback. Đây là lựa chọn đơn giản cho MVP, đánh đổi thông lượng ghi Employee; các task ghi Employee sau này phải giữ giao thức khóa này. Không dùng khóa JVM. Các port service đặt ở module tiêu thụ, adapter ở Employee để tránh phụ thuộc vòng và truy cập entity/repository xuyên module.
 - **ADR-015 — Xóa tổ chức và phạm vi:** theo xác nhận người dùng, mở rộng điều kiện “nhân viên active” của task thành `ACTIVE` **hoặc** `ON_LEAVE_LONG`, chỉ tính hồ sơ chưa xóa mềm. DRAFT/TERMINATED không chặn xóa mềm phòng ban. Position bị chặn xóa (409) khi còn bất kỳ hồ sơ tham chiếu, kể cả đã xóa mềm; FK Department/Position đều ON DELETE RESTRICT. Chỉ thêm service nền tảng tạo DRAFT/đọc/đổi quản lý để kiểm thử nghiệp vụ T2.1, không mở REST CRUD, kích hoạt, chuyển trạng thái hay xóa Employee (T2.2/T2.3/T2.6). Controller thử nghiệm chỉ nằm trong test.
+
+## T2.4 — Hợp đồng (quyết định được người dùng duyệt)
+
+- **ADR-016 — Vòng đời và ngày:** loại PROBATION/FIXED_TERM/INDEFINITE; chỉ tạo DRAFT, request tạo/sửa không nhận status (trường không hỗ trợ trả 400). DRAFT sửa đầy đủ, cho phép trùng hiệu lực. Chuyển trạng thái chỉ qua `POST /api/v1/contracts/{id}/activate` và `/terminate`: DRAFT → ACTIVE → TERMINATED, không quay ngược. ACTIVE chỉ sửa lương/phụ cấp hoặc rút ngắn end_date, không đổi employee/type/start_date; null là vô hạn nên có thể rút ngắn thành ngày hữu hạn. TERMINATED bất biến với mã CONTRACT_TERMINATED_IMMUTABLE. Ngày chấm dứt bắt buộc trong [start_date, end_date hiện tại], không có cận trên khi end_date null; ghi ngày và trạng thái cùng transaction. Không mở gia hạn, đính chính lịch sử hoặc API xóa.
+- **ADR-017 — Hiệu lực và ràng buộc:** hai đầu ngày đều được tính; ngày kết thúc ≥ ngày bắt đầu; chỉ INDEFINITE được có end_date null (INDEFINITE vẫn được có end_date hữu hạn khi rút ngắn/chấm dứt). PostgreSQL `btree_gist` + exclusion constraint `employee_id WITH =, daterange(start_date,end_date,'[]') WITH &&`, partial `deleted_at IS NULL AND status <> 'DRAFT'`, bảo vệ cả ACTIVE và lịch sử TERMINATED. Service kiểm trước khi kích hoạt, DB bảo vệ ghi trực tiếp/đồng thời; SQLState 23P01 trả CONTRACT_OVERLAP/409. Dùng optimistic version để từ chối ghi đè thay đổi đồng thời; kiểm Employee qua port service, lấy cùng advisory lock Employee theo ADR-014 để tránh đua với thay đổi trạng thái Employee.
+- **ADR-018 — Quyền và dữ liệu lương:** ADMIN/HR đọc/ghi; EMPLOYEE chỉ đọc hợp đồng của mình qua liên kết user_id. MANAGER không được đọc hợp đồng/lương cấp dưới; MANAGER + EMPLOYEE chỉ đọc của mình, cộng quyền ADMIN/HR như trước. Tiền VND theo tháng, BigDecimal/numeric(18,0), không âm và không có phần lẻ; phụ cấp là tổng một khoản. Audit CREATE/UPDATE/ACTIVATE/TERMINATE dùng AuditService hiện có (REQUIRES_NEW theo ADR-006), snapshot trước/sau che baseSalary/allowance bằng `***`; cập nhật ghi tên trường thay đổi, tuyệt đối không ghi số tiền thật. Không log DTO chứa lương; lỗi parse/validation không trả giá trị đầu vào. Truy vết số tiền thật để yêu cầu riêng.
+- **ADR-019 — Employee và hết hạn:** tạo/sửa/chuyển trạng thái chỉ khi Employee chưa xóa và thuộc DRAFT/ACTIVE/ON_LEAVE_LONG; Employee bị TERMINATED sau đó không tự đổi Contract. DTO `expired` nghĩa là end_date trước ngày hiện tại tại Asia/Ho_Chi_Minh, độc lập trạng thái lưu; tính bằng Clock inject, không job. `GET /api/v1/contracts/expiring` chỉ ADMIN/HR, ACTIVE chưa xóa có end_date trong [hôm nay,hôm nay+days], gồm hai mốc, days 1–365/mặc định 30. Hai endpoint danh sách đều phân trang, size cap 200, sort whitelist không cho sắp theo lương, thêm id để ổn định.
+
+### Chuẩn bị hạ tầng cho V9
+
+Production phải chuẩn bị extension trước migration nếu tài khoản migration không đủ quyền. DBA chạy trên đúng database:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA public;
+```
+
+Kiểm tra bằng chính tài khoản migration (không đưa mật khẩu vào log):
+
+```sql
+SELECT current_user, current_database(),
+       has_database_privilege(current_user, current_database(), 'CREATE') AS can_create;
+SELECT name, version, installed, trusted
+FROM pg_available_extension_versions WHERE name = 'btree_gist';
+SELECT e.extname, n.nspname FROM pg_extension e
+JOIN pg_namespace n ON n.oid = e.extnamespace WHERE e.extname = 'btree_gist';
+```
+
+V9 dùng `CREATE EXTENSION IF NOT EXISTS`; extension đã được DBA cài sẽ không cần tạo lại. Migration role cần quyền tạo bảng/index/FK trong schema ứng dụng và truy cập schema extension. Cấu hình production lấy DB_URL/DB_USERNAME/DB_PASSWORD từ môi trường; chưa có kết nối production trong phiên T2.4 để xác minh. DB Docker Compose dev không chạy khi kiểm tra; không coi kiểm chứng container test là kiểm chứng production. Không thêm dependency Maven.

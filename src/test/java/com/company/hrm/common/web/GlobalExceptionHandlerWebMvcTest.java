@@ -58,6 +58,14 @@ class GlobalExceptionHandlerWebMvcTest {
     }
 
     @Test
+    void should_map_postgres_exclusion_violation_without_exposing_database_details() throws Exception {
+        mockMvc.perform(get("/test/errors/contract-overlap"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is("CONTRACT_OVERLAP")))
+                .andExpect(jsonPath("$.detail", is("Hiệu lực hợp đồng chồng lấn")));
+    }
+
+    @Test
     void should_hide_internal_details_when_unexpected_error_occurs() throws Exception {
         mockMvc.perform(get("/test/errors/unexpected").header("X-Correlation-ID", "test-trace-id"))
                 .andExpect(status().isInternalServerError())

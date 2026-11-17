@@ -24,8 +24,36 @@ class FlywayMigrationIntegrationTest extends AbstractIntegrationTest {
                 .load();
         flyway.migrate();
 
-        assertThat(flyway.info().applied()).hasSize(8);
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("8");
+        assertThat(flyway.info().applied()).hasSize(9);
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("9");
+    }
+
+    @Test
+    void should_upgrade_v8_with_existing_employee_and_preserve_data() throws Exception {
+        String schema = "contract_upgrade";
+        var configuration = Flyway.configure()
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .schemas(schema).defaultSchema(schema).locations("classpath:db/migration");
+        configuration.target("8").load().migrate();
+        try (var connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             var statement = connection.createStatement()) {
+            connection.setSchema(schema);
+            statement.executeUpdate("""
+                    insert into employees(id,code,full_name,status,created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000002','NV000001','Nhân viên mẫu','DRAFT',
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """);
+            configuration.target("9").load().migrate();
+            try (var rows = statement.executeQuery("select count(*) from employees where code='NV000001'")) {
+                rows.next(); assertThat(rows.getInt(1)).isEqualTo(1);
+            }
+            try (var rows = statement.executeQuery("select count(*) from contracts")) {
+                rows.next(); assertThat(rows.getInt(1)).isZero();
+            }
+            try (var rows = statement.executeQuery("select has_database_privilege(current_user,current_database(),'CREATE')")) {
+                rows.next(); assertThat(rows.getBoolean(1)).isTrue();
+            }
+        }
     }
 
     @Test

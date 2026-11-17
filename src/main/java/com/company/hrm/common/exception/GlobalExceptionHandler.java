@@ -35,9 +35,15 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
-    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    @ExceptionHandler({org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
+            org.springframework.web.bind.MissingServletRequestParameterException.class})
     ProblemDetail handleParameterType(HttpServletRequest request) {
         return problem(ErrorCode.HRM_VALIDATION_ERROR, "Tham số yêu cầu không hợp lệ", request);
+    }
+
+    @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
+    ProblemDetail handleMethodValidation(HttpServletRequest request) {
+        return problem(ErrorCode.HRM_VALIDATION_ERROR, "Dữ liệu yêu cầu không hợp lệ", request);
     }
 
     @ExceptionHandler(BusinessException.class)
@@ -57,6 +63,10 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({ObjectOptimisticLockingFailureException.class, DataIntegrityViolationException.class})
     ProblemDetail handleConflict(RuntimeException exception, HttpServletRequest request) {
+        for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+            if (cause instanceof java.sql.SQLException sql && "23P01".equals(sql.getSQLState()))
+                return problem(ErrorCode.CONTRACT_OVERLAP, "Hiệu lực hợp đồng chồng lấn", request);
+        }
         return problem(ErrorCode.HRM_CONFLICT, "Dữ liệu đã được thay đổi hoặc đang xung đột", request);
     }
 
