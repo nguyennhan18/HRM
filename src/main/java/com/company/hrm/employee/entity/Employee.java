@@ -56,6 +56,36 @@ public class Employee extends BaseEntity {
 
     public void changeManager(UUID managerId) { this.managerId = managerId; }
 
+    public void updateProfile(String fullName, LocalDate dateOfBirth, Gender gender,
+                              String personalEmail, String companyEmail, String phone, String address,
+                              String cccdHash, String cccdLastFour, String bankAccountHash, String bankAccountLastFour,
+                              UUID departmentId, UUID positionId, UUID managerId, LocalDate startDate) {
+        this.fullName = fullName;
+        this.dateOfBirth = dateOfBirth;
+        this.gender = gender;
+        this.personalEmail = personalEmail;
+        this.companyEmail = companyEmail;
+        this.phone = phone;
+        this.address = address;
+        if (cccdHash != null) {
+            this.cccdHash = cccdHash;
+            this.cccdLastFour = cccdLastFour;
+        }
+        if (bankAccountHash != null) {
+            this.bankAccountHash = bankAccountHash;
+            this.bankAccountLastFour = bankAccountLastFour;
+        }
+        this.departmentId = departmentId;
+        this.positionId = positionId;
+        this.managerId = managerId;
+        this.startDate = startDate;
+    }
+
+    public void activate(UUID userId) {
+        this.status = EmployeeStatus.ACTIVE;
+        this.userId = java.util.Objects.requireNonNull(userId, "userId must not be null");
+    }
+
     public void terminate(LocalDate terminationDate, String reason) {
         this.status = EmployeeStatus.TERMINATED;
         this.terminationDate = terminationDate;

@@ -1,9 +1,11 @@
 package com.company.hrm.employee.controller;
 
 import com.company.hrm.common.exception.ApiProblems;
+import com.company.hrm.employee.dto.CreateEmployeeRequest;
 import com.company.hrm.employee.dto.EmployeeHistoryResponse;
 import com.company.hrm.employee.dto.EmployeeResponse;
 import com.company.hrm.employee.dto.TerminateEmployeeRequest;
+import com.company.hrm.employee.dto.UpdateEmployeeRequest;
 import com.company.hrm.employee.entity.EmployeeStatus;
 import com.company.hrm.employee.service.EmployeeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,6 +27,56 @@ import org.springframework.web.bind.annotation.*;
 public class EmployeeController {
     private final EmployeeService employees;
     public EmployeeController(EmployeeService employees) { this.employees = employees; }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @Operation(summary = "Tạo hồ sơ nhân viên nháp (DRAFT)",
+            description = "HR/ADMIN tạo hồ sơ nhân viên ở trạng thái DRAFT; chỉ bắt buộc fullName, các trường khác có thể bổ sung sau trước khi kích hoạt. "
+                    + "Sinh mã nhân viên tự động NV + 6 chữ số và ghi AuditLog CREATE.")
+    @ApiResponses({@ApiResponse(responseCode = "201", description = "Đã tạo hồ sơ DRAFT"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu đầu vào không hợp lệ"),
+            @ApiResponse(responseCode = "401", description = "Chưa xác thực"),
+            @ApiResponse(responseCode = "403", description = "Không có quyền ADMIN hoặc HR"),
+            @ApiResponse(responseCode = "404", description = "Phòng ban, chức danh hoặc quản lý không tồn tại"),
+            @ApiResponse(responseCode = "409", description = "Trùng email công ty, CCCD hoặc vòng lặp quản lý")})
+    public EmployeeResponse create(@Valid @RequestBody CreateEmployeeRequest request, HttpServletRequest httpRequest) {
+        return employees.create(request, ApiProblems.traceId(httpRequest));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @Operation(summary = "Cập nhật thông tin hồ sơ nhân viên",
+            description = "HR/ADMIN bổ sung hoặc cập nhật thông tin hồ sơ nhân viên. Nếu không gửi cccd hoặc bankAccountNumber thì giữ nguyên giá trị đã lưu. "
+                    + "Không cho phép cập nhật hồ sơ đã TERMINATED hoặc xóa trường bắt buộc của hồ sơ đã kích hoạt.")
+    @ApiResponses({@ApiResponse(responseCode = "200", description = "Đã cập nhật hồ sơ nhân viên"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu đầu vào không hợp lệ"),
+            @ApiResponse(responseCode = "401", description = "Chưa xác thực"),
+            @ApiResponse(responseCode = "403", description = "Không có quyền ADMIN hoặc HR"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy nhân viên hoặc tham chiếu tổ chức"),
+            @ApiResponse(responseCode = "409", description = "Trùng email công ty/CCCD, vòng lặp quản lý hoặc hồ sơ đã thôi việc"),
+            @ApiResponse(responseCode = "422", description = "Xóa trường bắt buộc của nhân viên đã kích hoạt")})
+    public EmployeeResponse update(@PathVariable UUID id,
+            @Valid @RequestBody UpdateEmployeeRequest request, HttpServletRequest httpRequest) {
+        return employees.update(id, request, ApiProblems.traceId(httpRequest));
+    }
+
+    @PostMapping("/{id}/activate")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @Operation(summary = "Kích hoạt hồ sơ nhân viên (DRAFT -> ACTIVE)",
+            description = "Kiểm tra đủ 6 trường bắt buộc (fullName, companyEmail, departmentId, positionId, startDate, cccd), "
+                    + "chuyển trạng thái từ DRAFT sang ACTIVE, tự động tạo tài khoản User gắn vai trò EMPLOYEE với cờ must_change_password = true, "
+                    + "gửi mật khẩu tạm qua Notifier và ghi AuditLog cho cả User (USER_PROVISIONED) và Employee (ACTIVATE). "
+                    + "Trả 409 nếu hồ sơ không ở trạng thái DRAFT, trả 422 kèm danh sách trường thiếu nếu chưa đủ thông tin.")
+    @ApiResponses({@ApiResponse(responseCode = "200", description = "Kích hoạt nhân viên thành công"),
+            @ApiResponse(responseCode = "401", description = "Chưa xác thực"),
+            @ApiResponse(responseCode = "403", description = "Không có quyền ADMIN hoặc HR"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy nhân viên hoặc phòng ban/chức danh tham chiếu"),
+            @ApiResponse(responseCode = "409", description = "Hồ sơ không ở trạng thái DRAFT hoặc email đăng nhập đã tồn tại"),
+            @ApiResponse(responseCode = "422", description = "Hồ sơ thiếu trường bắt buộc khi kích hoạt")})
+    public EmployeeResponse activate(@PathVariable UUID id, HttpServletRequest httpRequest) {
+        return employees.activate(id, ApiProblems.traceId(httpRequest));
+    }
 
     @GetMapping
     @Operation(summary = "Danh sách nhân viên trong phạm vi vai trò",

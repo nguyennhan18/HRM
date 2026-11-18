@@ -12,7 +12,7 @@ class AuditPayloadMasker {
 
     private static final String MASKED_VALUE = "***";
     private static final Set<String> SENSITIVE_FIELD_NAMES = Set.of(
-            "password", "passwordhash", "token", "accesstoken", "refreshtoken", "cccd",
+            "password", "passwordhash", "temporarypassword", "token", "accesstoken", "refreshtoken", "cccd",
             "cccdhash", "citizenidentificationnumber", "accountnumber", "bankaccountnumber",
             "bankaccounthash", "basesalary", "allowance", "salary");
 

@@ -18,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(noRollbackFor=BusinessException.class)
 public class AuthServiceImpl implements AuthService {
+    private static final String EMPLOYEE_ROLE = "EMPLOYEE";
     private final UserRepository users;
+    private final RoleRepository roles;
     private final AuthTokenRepository tokens;
     private final PasswordEncoder passwords;
     private final AuthProperties config;
@@ -28,9 +30,10 @@ public class AuthServiceImpl implements AuthService {
     private final AuditService audit;
     private final String dummy;
     private final SecureRandom random = new SecureRandom();
-    public AuthServiceImpl(UserRepository users, AuthTokenRepository tokens, PasswordEncoder passwords,
-            AuthProperties config, Clock clock, JwtService jwt, Notifier notifier, AuditService audit) {
-        this.users=users; this.tokens=tokens; this.passwords=passwords; this.config=config;
+    public AuthServiceImpl(UserRepository users, RoleRepository roles, AuthTokenRepository tokens,
+            PasswordEncoder passwords, AuthProperties config, Clock clock, JwtService jwt,
+            Notifier notifier, AuditService audit) {
+        this.users=users; this.roles=roles; this.tokens=tokens; this.passwords=passwords; this.config=config;
         this.clock=clock; this.jwt=jwt; this.notifier=notifier; this.audit=audit;
         dummy=passwords.encode(UUID.randomUUID().toString());
     }
@@ -52,12 +55,12 @@ public class AuthServiceImpl implements AuthService {
             throw denied();
         }
         user.clearFailures();
-        return issue(user.getId(),UUID.randomUUID(),clock.instant().plus(config.refreshTtl()));
+        return issue(user,UUID.randomUUID(),clock.instant().plus(config.refreshTtl()));
     }
-    private Tokens issue(UUID user, UUID family, java.time.Instant expiry) {
+    private Tokens issue(User user, UUID family, java.time.Instant expiry) {
         String raw=randomToken();
-        tokens.save(new AuthToken(user,family,hash(raw),"REFRESH",expiry));
-        return new Tokens(jwt.issue(user,family),raw,"Bearer",config.accessTtl().toSeconds());
+        tokens.save(new AuthToken(user.getId(),family,hash(raw),"REFRESH",expiry));
+        return new Tokens(jwt.issue(user.getId(),family),raw,"Bearer",config.accessTtl().toSeconds(),user.isMustChangePassword());
     }
     @Override public Tokens refresh(String raw) {
         AuthToken initial=tokens.findByTokenHash(hash(raw)).orElseThrow(AuthServiceImpl::denied);
@@ -72,7 +75,7 @@ public class AuthServiceImpl implements AuthService {
         if(initial.isRevoked() || !initial.getExpiresAt().isAfter(clock.instant()) || !user.isEnabled())
             throw denied();
         initial.use();
-        return issue(user.getId(),initial.getFamilyId(),clock.instant().plus(config.refreshTtl()));
+        return issue(user,initial.getFamilyId(),clock.instant().plus(config.refreshTtl()));
     }
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
@@ -122,6 +125,31 @@ public class AuthServiceImpl implements AuthService {
     public Set<String> roles(UUID user) {
         return users.findRoleCodesById(user);
     }
+    @Override @Transactional(readOnly=true)
+    public boolean mustChangePassword(UUID user) {
+        return users.findById(user).map(User::isMustChangePassword).orElse(false);
+    }
+    @Override @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    public UUID provisionEmployeeUser(String email, String traceId) {
+        if (email == null || email.isBlank()) {
+            throw new BusinessException(ErrorCode.HRM_VALIDATION_ERROR, "Email công ty không được để trống");
+        }
+        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
+        if (users.findByEmail(normalizedEmail).isPresent()) {
+            throw new BusinessException(ErrorCode.HRM_CONFLICT, "Email đăng nhập đã được sử dụng");
+        }
+        Role employeeRole = roles.findByCode(EMPLOYEE_ROLE).orElseThrow(() ->
+                new IllegalStateException("Seeded EMPLOYEE role is missing"));
+        String temporaryPassword = randomTemporaryPassword();
+        User user = new User(normalizedEmail, encodePassword(temporaryPassword), employeeRole, true);
+        users.saveAndFlush(user);
+        audit.record("USER_PROVISIONED", "User", user.getId(),
+                null,
+                Map.of("email", user.getEmail(), "role", EMPLOYEE_ROLE, "enabled", true, "mustChangePassword", true),
+                traceId);
+        notifier.onboardingInvite(user.getEmail(), temporaryPassword);
+        return user.getId();
+    }
     @Override @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     public void deactivateUser(UUID userId, String traceId) {
         User user = users.lockById(userId).orElseThrow(() ->
@@ -141,6 +169,11 @@ public class AuthServiceImpl implements AuthService {
     private String randomToken() {
         byte[] bytes=new byte[32]; random.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+    private String randomTemporaryPassword() {
+        byte[] bytes = new byte[12];
+        random.nextBytes(bytes);
+        return "Tmp#" + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
     private String encodePassword(String password) {
         if (password.getBytes(StandardCharsets.UTF_8).length > 72) {

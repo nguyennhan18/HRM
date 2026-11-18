@@ -4,5 +4,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class StubNotifier implements Notifier {
     @Override public void passwordReset(String email, String token) {}
+    @Override public void onboardingInvite(String email, String temporaryPassword) {}
 }
 

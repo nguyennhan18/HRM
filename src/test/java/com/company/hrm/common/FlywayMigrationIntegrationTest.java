@@ -24,8 +24,43 @@ class FlywayMigrationIntegrationTest extends AbstractIntegrationTest {
                 .load();
         flyway.migrate();
 
-        assertThat(flyway.info().applied()).hasSize(11);
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("11");
+        assertThat(flyway.info().applied()).hasSize(12);
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("12");
+    }
+
+    @Test
+    void should_upgrade_v11_preserve_users_and_backfill_must_change_password_default() throws Exception {
+        String schema = "onboarding_upgrade";
+        var configuration = Flyway.configure()
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .schemas(schema).defaultSchema(schema).locations("classpath:db/migration");
+        configuration.target("11").load().migrate();
+        try (var connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             var statement = connection.createStatement()) {
+            connection.setSchema(schema);
+            statement.executeUpdate("""
+                    insert into users(id,email,password_hash,enabled,failed_attempts,created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000005','legacy@example.com','$2a$10$hash',true,0,
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """);
+            configuration.target("12").load().migrate();
+            try (var rows = statement.executeQuery("select must_change_password from users where email='legacy@example.com'")) {
+                rows.next();
+                assertThat(rows.getBoolean(1)).isFalse();
+            }
+            org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                    statement.executeUpdate("update users set must_change_password = null where email='legacy@example.com'"))
+                    .isInstanceOf(java.sql.SQLException.class);
+            statement.executeUpdate("""
+                    insert into users(id,email,password_hash,enabled,failed_attempts,created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000006','default@example.com','$2a$10$hash',true,0,
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """);
+            try (var rows = statement.executeQuery("select must_change_password from users where email='default@example.com'")) {
+                rows.next();
+                assertThat(rows.getBoolean(1)).isFalse();
+            }
+        }
     }
 
     @Test

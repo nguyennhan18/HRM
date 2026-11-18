@@ -24,6 +24,9 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private boolean enabled = true;
 
+    @Column(name = "must_change_password", nullable = false)
+    private boolean mustChangePassword;
+
     private int failedAttempts;
     private java.time.Instant lockedUntil;
 
@@ -34,7 +37,7 @@ public class User extends BaseEntity {
     }
     public void lockUntil(java.time.Instant until) { lockedUntil = until; }
     public void clearFailures() { failedAttempts = 0; lockedUntil = null; }
-    public void changePassword(String hash) { passwordHash = hash; clearFailures(); }
+    public void changePassword(String hash) { passwordHash = hash; mustChangePassword = false; clearFailures(); }
     public void disable() { enabled = false; clearFailures(); }
 
     @ManyToMany
@@ -47,9 +50,14 @@ public class User extends BaseEntity {
     }
 
     public User(String email, String passwordHash, Role role) {
+        this(email, passwordHash, role, false);
+    }
+
+    public User(String email, String passwordHash, Role role, boolean mustChangePassword) {
         this.email = Objects.requireNonNull(email, "email must not be null");
         this.passwordHash = Objects.requireNonNull(passwordHash, "passwordHash must not be null");
         this.roles.add(Objects.requireNonNull(role, "role must not be null"));
+        this.mustChangePassword = mustChangePassword;
     }
 
     public String getEmail() {
@@ -62,6 +70,10 @@ public class User extends BaseEntity {
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    public boolean isMustChangePassword() {
+        return mustChangePassword;
     }
 
     public Set<Role> getRoles() {

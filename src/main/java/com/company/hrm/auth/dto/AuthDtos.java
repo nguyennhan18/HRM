@@ -11,6 +11,10 @@ public final class AuthDtos {
     public record Forgot(@NotBlank @Email @Size(max=254) String email) {}
     public record Reset(@NotBlank @Size(max=128) String token, @NotBlank @Size(min=10,max=72) String password) {}
     public record Change(@NotBlank @Size(max=72) String oldPassword, @NotBlank @Size(min=10,max=72) String password) {}
-    public record Tokens(String accessToken, String refreshToken, String tokenType, long expiresIn) {}
+    public record Tokens(String accessToken, String refreshToken, String tokenType, long expiresIn, boolean mustChangePassword) {
+        public Tokens(String accessToken, String refreshToken, String tokenType, long expiresIn) {
+            this(accessToken, refreshToken, tokenType, expiresIn, false);
+        }
+    }
 }
 

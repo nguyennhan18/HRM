@@ -33,7 +33,9 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID>, org.s
     Optional<Employee> findByIdAndDeletedAtIsNull(UUID id);
     long countByManagerIdAndDeletedAtIsNull(UUID managerId);
     boolean existsByCompanyEmail(String companyEmail);
+    boolean existsByCompanyEmailAndIdNot(String companyEmail, UUID id);
     boolean existsByCccdHash(String cccdHash);
+    boolean existsByCccdHashAndIdNot(String cccdHash, UUID id);
     boolean existsByPositionId(UUID positionId);
 
     @Query("select e.id from Employee e where e.userId = :userId and e.deletedAt is null")

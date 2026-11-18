@@ -57,6 +57,9 @@ public class SecurityConfiguration {
                         var user=UUID.fromString(token.getSubject());
                         var family=UUID.fromString(token.getClaimAsString("sid"));
                         if(!auth.active(user,family)) {problem(mapper,q,r,clock,401,"HRM_AUTHENTICATION_FAILED");return;}
+                        if(auth.mustChangePassword(user) && !isAllowedDuringPasswordChange(q.getRequestURI())) {
+                            problem(mapper,q,r,clock,403,"HRM_ACCESS_DENIED");return;
+                        }
                         var authentication=new UsernamePasswordAuthenticationToken(user.toString(),null,auth.roles(user).stream()
                             .map(role -> new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + role)).toList());
                         authentication.setDetails(family);
@@ -66,6 +69,14 @@ public class SecurityConfiguration {
                     }
                 }
                 chain.doFilter(q,r);
+            }
+            private boolean isAllowedDuringPasswordChange(String uri) {
+                return uri.equals("/api/v1/auth/change-password")
+                        || uri.equals("/api/v1/auth/logout")
+                        || uri.equals("/api/v1/auth/refresh")
+                        || uri.equals("/api/v1/auth/login")
+                        || uri.equals("/api/v1/auth/forgot-password")
+                        || uri.equals("/api/v1/auth/reset-password");
             }
             private synchronized long limit(String ip) {
                 var now=clock.instant();

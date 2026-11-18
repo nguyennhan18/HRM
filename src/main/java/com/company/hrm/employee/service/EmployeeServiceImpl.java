@@ -77,6 +77,74 @@ public class EmployeeServiceImpl implements EmployeeService {
         return mask(response);
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public EmployeeResponse update(UUID id, UpdateEmployeeRequest request, String traceId) {
+        var cccd = hasher.protect("cccd", request.cccd());
+        var bank = hasher.protect("bank-account", request.bankAccountNumber());
+        lock.acquire();
+        var employee = existing(id);
+        if (employee.getStatus() == EmployeeStatus.TERMINATED) {
+            throw new BusinessException(ErrorCode.HRM_CONFLICT,
+                    "Không thể cập nhật nhân viên đang ở trạng thái " + employee.getStatus());
+        }
+        if (employee.getStatus() != EmployeeStatus.DRAFT) {
+            if (request.companyEmail() == null || request.departmentId() == null
+                    || request.positionId() == null || request.startDate() == null) {
+                throw new BusinessException(ErrorCode.HRM_UNPROCESSABLE_ENTITY,
+                        "Không thể xóa trường bắt buộc của nhân viên đã kích hoạt");
+            }
+        }
+        if (request.departmentId() != null) departments.get(request.departmentId());
+        if (request.positionId() != null) positions.get(request.positionId());
+        validateManager(id, request.managerId());
+        if ((request.companyEmail() != null && employees.existsByCompanyEmailAndIdNot(request.companyEmail(), id))
+                || (cccd.hash() != null && employees.existsByCccdHashAndIdNot(cccd.hash(), id))) {
+            throw new BusinessException(ErrorCode.HRM_CONFLICT, "Email công ty hoặc CCCD đã được sử dụng");
+        }
+        var before = mapper.toResponse(employee);
+        employee.updateProfile(request.fullName(), request.dateOfBirth(), request.gender(),
+                request.personalEmail(), request.companyEmail(), request.phone(), request.address(),
+                cccd.hash(), cccd.lastFour(), bank.hash(), bank.lastFour(), request.departmentId(),
+                request.positionId(), request.managerId(), request.startDate());
+        employees.flush();
+        var after = mapper.toResponse(employee);
+        audit.record("UPDATE", "Employee", id, before, after, traceId);
+        return mask(after);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public EmployeeResponse activate(UUID id, String traceId) {
+        lock.acquire();
+        var employee = existing(id);
+        if (employee.getStatus() != EmployeeStatus.DRAFT) {
+            throw new BusinessException(ErrorCode.HRM_CONFLICT,
+                    "Không thể kích hoạt nhân viên đang ở trạng thái " + employee.getStatus());
+        }
+        var missing = new java.util.ArrayList<String>();
+        if (employee.getFullName() == null || employee.getFullName().isBlank()) missing.add("fullName");
+        if (employee.getCompanyEmail() == null || employee.getCompanyEmail().isBlank()) missing.add("companyEmail");
+        if (employee.getDepartmentId() == null) missing.add("departmentId");
+        if (employee.getPositionId() == null) missing.add("positionId");
+        if (employee.getStartDate() == null) missing.add("startDate");
+        if (employee.getCccdHash() == null || employee.getCccdLastFour() == null) missing.add("cccd");
+        if (!missing.isEmpty()) {
+            throw new BusinessException(ErrorCode.HRM_UNPROCESSABLE_ENTITY,
+                    "Hồ sơ thiếu trường bắt buộc khi kích hoạt: " + String.join(", ", missing));
+        }
+        departments.get(employee.getDepartmentId());
+        positions.get(employee.getPositionId());
+        validateManager(employee.getId(), employee.getManagerId());
+        var before = mapper.toResponse(employee);
+        UUID userId = auth.provisionEmployeeUser(employee.getCompanyEmail(), traceId);
+        employee.activate(userId);
+        employees.flush();
+        var after = mapper.toResponse(employee);
+        audit.record("ACTIVATE", "Employee", id, before, after, traceId);
+        return mask(after);
+    }
+
     @PreAuthorize("@authz.canViewEmployee(#id)")
     public EmployeeResponse get(UUID id) { return mask(mapper.toResponse(existing(id))); }
 
