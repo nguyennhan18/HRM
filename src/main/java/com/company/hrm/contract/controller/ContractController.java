@@ -53,14 +53,15 @@ public class ContractController {
         return contracts.terminate(id, r, ApiProblems.traceId(http));
     }
     @GetMapping("/{id}")
-    @Operation(summary = "Xem hợp đồng và lương", description = "ADMIN/HR hoặc EMPLOYEE sở hữu. MANAGER không xem cấp dưới. "
+    @Operation(summary = "Xem hợp đồng và lương", description = "ADMIN/HR xem tất cả; MANAGER xem hợp đồng cấp dưới trực tiếp/gián tiếp; EMPLOYEE xem hợp đồng của chính mình. "
+            + "Trường baseSalary và allowance chỉ trả giá trị thực cho ADMIN, HR hoặc EMPLOYEE sở hữu; khi MANAGER xem hợp đồng cấp dưới, hai trường này trả null (do trong DB luôn NOT NULL nên null biểu thị đã che theo quyền). "
             + "expired = endDate trước hôm nay tại Asia/Ho_Chi_Minh, độc lập status; ngày kết thúc hôm nay chưa expired. Ví dụ GET /api/v1/contracts/{id}.")
     @ApiResponse(responseCode = "200", description = "Chi tiết hợp đồng")
     public ContractResponse get(@PathVariable UUID id) { return contracts.get(id); }
     @GetMapping
     @Operation(summary = "Danh sách theo nhân viên", description = "Ví dụ ?employeeId={uuid}&page=0&size=20&sort=endDate,asc. "
-            + "ADMIN/HR hoặc EMPLOYEE sở hữu; không có dữ liệu trả trang rỗng. size tối đa 200; "
-            + "sort: id,startDate,endDate,status,createdAt,updatedAt; mặc định endDate,id ASC.")
+            + "ADMIN/HR, MANAGER của nhân viên hoặc EMPLOYEE sở hữu; khi MANAGER xem cấp dưới, baseSalary và allowance được che bằng null. "
+            + "Không có dữ liệu trả trang rỗng. size tối đa 200; sort: id,startDate,endDate,status,createdAt,updatedAt; mặc định endDate,id ASC.")
     @ApiResponse(responseCode = "200", description = "Trang hợp đồng")
     public Page<ContractResponse> list(@RequestParam UUID employeeId, @ParameterObject Pageable page) {
         return contracts.list(employeeId, page);

@@ -30,4 +30,5 @@ public class Contract extends BaseEntity {
         return this == other || other instanceof Contract c && getId() != null && getId().equals(c.getId());
     }
     @Override public int hashCode() { return Contract.class.hashCode(); }
+    @Override public String toString() { return "Contract[id=" + getId() + ", status=" + status + "]"; }
 }

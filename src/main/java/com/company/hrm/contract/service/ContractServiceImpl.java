@@ -2,6 +2,7 @@ package com.company.hrm.contract.service;
 
 import com.company.hrm.common.audit.AuditService;
 import com.company.hrm.common.exception.*;
+import com.company.hrm.common.security.SensitiveFieldMasker;
 import com.company.hrm.contract.dto.*;
 import com.company.hrm.contract.entity.*;
 import com.company.hrm.contract.mapper.ContractMapper;
@@ -21,12 +22,14 @@ public class ContractServiceImpl implements ContractService {
     private final ContractEmployeeGuard employees;
     private final ContractAccess access;
     private final ContractMapper mapper;
+    private final SensitiveFieldMasker masker;
     private final AuditService audit;
     private final Clock clock;
     public ContractServiceImpl(ContractRepository contracts, ContractEmployeeGuard employees,
-            ContractAccess access, ContractMapper mapper, AuditService audit, Clock clock) {
+            ContractAccess access, ContractMapper mapper, SensitiveFieldMasker masker,
+            AuditService audit, Clock clock) {
         this.contracts = contracts; this.employees = employees; this.access = access;
-        this.mapper = mapper; this.audit = audit; this.clock = clock;
+        this.mapper = mapper; this.masker = masker; this.audit = audit; this.clock = clock;
     }
     @PreAuthorize("hasAnyRole('ADMIN','HR')")
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -100,15 +103,17 @@ public class ContractServiceImpl implements ContractService {
             save(c, "TERMINATE", before, List.of("endDate", "status"), traceId);
         }
     }
-    @PreAuthorize("hasAnyRole('ADMIN','HR','EMPLOYEE')")
+    @PreAuthorize("hasAnyRole('ADMIN','HR','MANAGER','EMPLOYEE')")
     public ContractResponse get(UUID id) {
         var c = existing(id);
         if (!access.canRead(c.getEmployeeId())) throw new AccessDeniedException("Không có quyền xem hợp đồng");
-        return response(c);
+        return response(c, access.canViewSalary(c.getEmployeeId()));
     }
     @PreAuthorize("@contractAccess.canRead(#employeeId)")
     public Page<ContractResponse> list(UUID employeeId, Pageable page) {
-        return contracts.findByEmployeeIdAndDeletedAtIsNull(employeeId, checked(page)).map(this::response);
+        boolean canViewSalary = access.canViewSalary(employeeId);
+        return contracts.findByEmployeeIdAndDeletedAtIsNull(employeeId, checked(page))
+                .map(c -> response(c, canViewSalary));
     }
     @PreAuthorize("hasAnyRole('ADMIN','HR')")
     public Page<ContractResponse> expiring(int days, Pageable page) {
@@ -116,7 +121,8 @@ public class ContractServiceImpl implements ContractService {
             throw new BusinessException(ErrorCode.HRM_VALIDATION_ERROR, "days phải từ 1 đến 365");
         var today = today();
         return contracts.findByStatusAndDeletedAtIsNullAndEndDateBetween(ContractStatus.ACTIVE,
-                today, today.plusDays(days), checked(page)).map(this::response);
+                today, today.plusDays(days), checked(page))
+                .map(c -> response(c, access.canViewSalary(c.getEmployeeId())));
     }
     private ContractResponse save(Contract c, String action, Map<String,Object> before,
                                   List<String> changed, String traceId) {
@@ -153,7 +159,11 @@ public class ContractServiceImpl implements ContractService {
     }
     private LocalDate today() { return LocalDate.now(clock.withZone(ZoneId.of("Asia/Ho_Chi_Minh"))); }
     private ContractResponse response(Contract c) {
-        return mapper.toResponse(c, c.getEndDate() != null && c.getEndDate().isBefore(today()));
+        return response(c, access.canViewSalary(c.getEmployeeId()));
+    }
+    private ContractResponse response(Contract c, boolean canViewSalary) {
+        return mapper.toResponse(c, c.getEndDate() != null && c.getEndDate().isBefore(today()))
+                .masked(masker, canViewSalary);
     }
     private Map<String,Object> snapshot(Contract c) {
         Map<String,Object> data = new LinkedHashMap<>();

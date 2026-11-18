@@ -1,7 +1,9 @@
 package com.company.hrm.auth.service;
 
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Predicate;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -43,5 +45,40 @@ public class AuthorizationService {
             if (own.equals(current)) subordinate = true;
         }
         return subordinate;
+    }
+
+    public boolean canViewSensitiveData(UUID employeeId) {
+        return employeeId != null && sensitiveDataFilter().test(employeeId);
+    }
+
+    public Predicate<UUID> sensitiveDataFilter() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
+            return id -> false;
+        }
+        var roles = authentication.getAuthorities().stream()
+                .map(org.springframework.security.core.GrantedAuthority::getAuthority).toList();
+        if (roles.contains("ROLE_ADMIN") || roles.contains("ROLE_HR")) {
+            return Objects::nonNull;
+        }
+        if (!roles.contains("ROLE_EMPLOYEE")) {
+            return id -> false;
+        }
+        var query = relations.getIfAvailable();
+        if (query == null) {
+            return id -> false;
+        }
+        UUID userId;
+        try {
+            userId = UUID.fromString(authentication.getName());
+        } catch (IllegalArgumentException ex) {
+            return id -> false;
+        }
+        var own = query.employeeIdForUser(userId).orElse(null);
+        if (own == null) {
+            return id -> false;
+        }
+        return own::equals;
     }
 }

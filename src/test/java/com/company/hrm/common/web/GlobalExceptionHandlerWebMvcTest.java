@@ -1,5 +1,6 @@
 package com.company.hrm.common.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -10,8 +11,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.company.hrm.common.config.TimeConfig;
 import com.company.hrm.common.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -19,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(ErrorHandlingTestController.class)
 @org.springframework.security.test.context.support.WithMockUser
 @Import({GlobalExceptionHandler.class, TimeConfig.class})
+@ExtendWith(OutputCaptureExtension.class)
 class GlobalExceptionHandlerWebMvcTest {
 
     @Autowired
@@ -66,12 +71,15 @@ class GlobalExceptionHandlerWebMvcTest {
     }
 
     @Test
-    void should_hide_internal_details_when_unexpected_error_occurs() throws Exception {
+    void should_hide_internal_details_when_unexpected_error_occurs(CapturedOutput output) throws Exception {
         mockMvc.perform(get("/test/errors/unexpected").header("X-Correlation-ID", "test-trace-id"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code", is("HRM_INTERNAL_ERROR")))
                 .andExpect(jsonPath("$.traceId", is("test-trace-id")))
                 .andExpect(jsonPath("$.detail").value("Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau."))
                 .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("sensitive"))));
+        assertThat(output.getAll())
+                .contains("test-trace-id", "IllegalStateException")
+                .doesNotContain("sensitive internal detail");
     }
 }

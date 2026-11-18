@@ -12,4 +12,9 @@ public record EmployeeHistoryResponse(
         @Schema(description = "Dữ liệu trước thay đổi") JsonNode beforeJson,
         @Schema(description = "Dữ liệu sau thay đổi") JsonNode afterJson,
         @Schema(description = "Thời điểm thực hiện (UTC)") Instant createdAt,
-        @Schema(description = "Mã truy vết request") String traceId) {}
+        @Schema(description = "Mã truy vết request") String traceId) {
+    @Override
+    public String toString() {
+        return "EmployeeHistoryResponse[id=" + id + ", action=" + action + "]";
+    }
+}

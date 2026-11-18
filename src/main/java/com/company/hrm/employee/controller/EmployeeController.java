@@ -31,7 +31,9 @@ public class EmployeeController {
             description = "Lọc AND: name tìm chứa không dấu/không phân biệt hoa thường; departmentId, positionId đúng UUID; status. "
                     + "Không gồm phòng ban con. Ví dụ: ?name=nguyen&status=ACTIVE&size=50&sort=fullName,asc. "
                     + "Sort: id, code, fullName, status, startDate, createdAt, updatedAt; mặc định code,id ASC; "
-                    + "thêm id để ổn định thứ tự. size vượt 200 cắt về 200. Không có dữ liệu hoặc liên kết Employee trả trang rỗng 200.")
+                    + "thêm id để ổn định thứ tự. size vượt 200 cắt về 200. Không có dữ liệu hoặc liên kết Employee trả trang rỗng 200. "
+                    + "Trường cccdLastFour và bankAccountLastFour trả 4 số cuối (ví dụ 1234) cho người có quyền (ADMIN, HR, hoặc EMPLOYEE xem chính mình), "
+                    + "và trả dạng che ******1234 khi MANAGER xem cấp dưới.")
     @ApiResponses({@ApiResponse(responseCode = "200", description = "Danh sách phân trang"),
             @ApiResponse(responseCode = "400", description = "Bộ lọc hoặc trường sort không hợp lệ"),
             @ApiResponse(responseCode = "401", description = "Chưa xác thực"),
@@ -40,6 +42,22 @@ public class EmployeeController {
             @RequestParam(required = false) UUID departmentId, @RequestParam(required = false) UUID positionId,
             @RequestParam(required = false) EmployeeStatus status, @ParameterObject Pageable page) {
         return employees.list(name, departmentId, positionId, status, page);
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("@authz.canViewEmployee(#id)")
+    @Operation(summary = "Xem chi tiết hồ sơ nhân viên",
+            description = "ADMIN/HR xem tất cả; MANAGER xem cấp dưới trực tiếp/gián tiếp; EMPLOYEE xem chính mình. "
+                    + "Với người có quyền xem dữ liệu nhạy cảm (ADMIN, HR, hoặc EMPLOYEE xem chính mình), "
+                    + "cccdLastFour và bankAccountLastFour trả 4 số cuối theo thiết kế T2.1 (ví dụ 1234); "
+                    + "với MANAGER xem cấp dưới, các trường này được che dạng ******1234.")
+    @ApiResponses({@ApiResponse(responseCode = "200", description = "Chi tiết hồ sơ nhân viên"),
+            @ApiResponse(responseCode = "400", description = "ID không hợp lệ"),
+            @ApiResponse(responseCode = "401", description = "Chưa xác thực"),
+            @ApiResponse(responseCode = "403", description = "Không có quyền xem hồ sơ này"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy nhân viên")})
+    public EmployeeResponse get(@PathVariable UUID id) {
+        return employees.get(id);
     }
 
     @PostMapping("/{id}/terminate")

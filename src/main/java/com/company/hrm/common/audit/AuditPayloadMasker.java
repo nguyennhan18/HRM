@@ -13,7 +13,8 @@ class AuditPayloadMasker {
     private static final String MASKED_VALUE = "***";
     private static final Set<String> SENSITIVE_FIELD_NAMES = Set.of(
             "password", "passwordhash", "token", "accesstoken", "refreshtoken", "cccd",
-            "citizenidentificationnumber", "accountnumber", "bankaccountnumber");
+            "cccdhash", "citizenidentificationnumber", "accountnumber", "bankaccountnumber",
+            "bankaccounthash", "basesalary", "allowance", "salary");
 
     JsonNode mask(JsonNode payload) {
         if (payload == null) {

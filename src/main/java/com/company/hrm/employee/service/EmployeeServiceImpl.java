@@ -1,8 +1,10 @@
 package com.company.hrm.employee.service;
 
 import com.company.hrm.auth.service.AuthService;
+import com.company.hrm.auth.service.AuthorizationService;
 import com.company.hrm.common.audit.AuditService;
 import com.company.hrm.common.exception.*;
+import com.company.hrm.common.security.SensitiveFieldMasker;
 import com.company.hrm.contract.service.ContractService;
 import com.company.hrm.employee.dto.*;
 import com.company.hrm.employee.entity.Employee;
@@ -37,16 +39,19 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final PositionService positions;
     private final ContractService contracts;
     private final AuthService auth;
+    private final AuthorizationService authz;
+    private final SensitiveFieldMasker masker;
     private final AuditService audit;
     private final Clock clock;
 
     public EmployeeServiceImpl(EmployeeRepository employees, EmployeeWriteLock lock,
             SensitiveIdentifierHasher hasher, EmployeeMapper mapper, DepartmentService departments,
             PositionService positions, ContractService contracts, AuthService auth,
+            AuthorizationService authz, SensitiveFieldMasker masker,
             AuditService audit, Clock clock) {
         this.employees = employees; this.lock = lock; this.hasher = hasher; this.mapper = mapper;
         this.departments = departments; this.positions = positions; this.contracts = contracts;
-        this.auth = auth; this.audit = audit; this.clock = clock;
+        this.auth = auth; this.authz = authz; this.masker = masker; this.audit = audit; this.clock = clock;
     }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
@@ -69,11 +74,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         employees.saveAndFlush(entity);
         var response = mapper.toResponse(entity);
         audit.record("CREATE", "Employee", entity.getId(), null, response, traceId);
-        return response;
+        return mask(response);
     }
 
     @PreAuthorize("@authz.canViewEmployee(#id)")
-    public EmployeeResponse get(UUID id) { return mapper.toResponse(existing(id)); }
+    public EmployeeResponse get(UUID id) { return mask(mapper.toResponse(existing(id))); }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -86,7 +91,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         employees.flush();
         var after = mapper.toResponse(employee);
         audit.record("UPDATE_MANAGER", "Employee", id, before, after, traceId);
-        return after;
+        return mask(after);
     }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'HR', 'MANAGER', 'EMPLOYEE')")
@@ -106,8 +111,9 @@ public class EmployeeServiceImpl implements EmployeeService {
                 visible = java.util.List.of();
             }
         }
+        var canViewSensitive = authz.sensitiveDataFilter();
         return employees.findAll(EmployeeSpecification.matching(name, departmentId, positionId, status, visible), checked)
-                .map(mapper::toResponse);
+                .map(e -> mapper.toResponse(e).masked(masker, canViewSensitive.test(e.getId())));
     }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
@@ -132,7 +138,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
         var after = mapper.toResponse(employee);
         audit.record("TERMINATE", "Employee", id, before, after, traceId);
-        return after;
+        return mask(after);
     }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
@@ -192,6 +198,10 @@ public class EmployeeServiceImpl implements EmployeeService {
             }
             current = existing(current).getManagerId();
         }
+    }
+
+    private EmployeeResponse mask(EmployeeResponse response) {
+        return response.masked(masker, authz.canViewSensitiveData(response.id()));
     }
 
     private Employee existing(UUID id) {

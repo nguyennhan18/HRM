@@ -73,4 +73,5 @@ public class Employee extends BaseEntity {
         return other instanceof Employee employee && getId() != null && getId().equals(employee.getId());
     }
     @Override public int hashCode() { return Employee.class.hashCode(); }
+    @Override public String toString() { return "Employee[id=" + getId() + ", code=" + code + "]"; }
 }

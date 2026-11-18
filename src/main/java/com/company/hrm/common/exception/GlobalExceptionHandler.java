@@ -84,7 +84,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     ProblemDetail handleUnexpected(Exception exception, HttpServletRequest request) {
         String traceId = traceId(request);
-        log.error("Lỗi không mong đợi, traceId={}", traceId, exception);
+        log.error("Lỗi không mong đợi, traceId={}, exceptionType={}", traceId, exception.getClass().getName());
         return problem(ErrorCode.HRM_INTERNAL_ERROR, "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.", request, traceId);
     }
 

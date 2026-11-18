@@ -255,15 +255,27 @@ class ContractIntegrationTest extends AbstractIntegrationTest {
         UUID owner=employee(); UUID userId=link(owner); var own=draft(owner,TODAY,null);
         UUID child=employees.create(new EmployeeFixture().manager(owner).build(),null).id();
         var other=draft(child,TODAY,null);
+        UUID unrelated=employee(); var unrelatedContract=draft(unrelated,TODAY,null);
         for(String[] role:List.of(new String[]{"EMPLOYEE"},new String[]{"MANAGER","EMPLOYEE"})) {
             mvc.perform(get(PATH+"/"+own.id()).with(user(userId.toString()).roles(role)))
                     .andExpect(status().isOk()).andExpect(jsonPath("$.baseSalary").value(SALARY.intValue()));
-            mvc.perform(get(PATH+"/"+other.id()).with(user(userId.toString()).roles(role))).andExpect(status().isForbidden())
-                    .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(SALARY.toString()))));
             mvc.perform(get(PATH).param("employeeId",owner.toString()).with(user(userId.toString()).roles(role)))
                     .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].baseSalary").value(SALARY.intValue()));
-            mvc.perform(get(PATH).param("employeeId",child.toString()).with(user(userId.toString()).roles(role))).andExpect(status().isForbidden());
+            mvc.perform(get(PATH+"/"+unrelatedContract.id()).with(user(userId.toString()).roles(role))).andExpect(status().isForbidden())
+                    .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(SALARY.toString()))));
+            mvc.perform(get(PATH).param("employeeId",unrelated.toString()).with(user(userId.toString()).roles(role))).andExpect(status().isForbidden());
         }
+        mvc.perform(get(PATH+"/"+other.id()).with(user(userId.toString()).roles("EMPLOYEE"))).andExpect(status().isForbidden())
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(SALARY.toString()))));
+        mvc.perform(get(PATH).param("employeeId",child.toString()).with(user(userId.toString()).roles("EMPLOYEE"))).andExpect(status().isForbidden());
+        mvc.perform(get(PATH+"/"+other.id()).with(user(userId.toString()).roles("MANAGER","EMPLOYEE")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.baseSalary").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.allowance").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(SALARY.toString()))));
+        mvc.perform(get(PATH).param("employeeId",child.toString()).with(user(userId.toString()).roles("MANAGER","EMPLOYEE")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].baseSalary").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.content[0].allowance").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(SALARY.toString()))));
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(userId.toString(),"unused",AuthorityUtils.createAuthorityList("ROLE_EMPLOYEE")));
         assertThat(contracts.get(own.id()).baseSalary()).isEqualByComparingTo(SALARY);
         assertThatThrownBy(() -> contracts.get(other.id())).isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
