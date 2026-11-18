@@ -1,17 +1,24 @@
 package com.company.hrm.employee.service;
 
+import com.company.hrm.auth.service.AuthService;
 import com.company.hrm.common.audit.AuditService;
 import com.company.hrm.common.exception.*;
+import com.company.hrm.contract.service.ContractService;
 import com.company.hrm.employee.dto.*;
 import com.company.hrm.employee.entity.Employee;
+import com.company.hrm.employee.entity.EmployeeStatus;
 import com.company.hrm.employee.mapper.EmployeeMapper;
 import com.company.hrm.employee.repository.*;
 import com.company.hrm.organization.service.DepartmentService;
 import com.company.hrm.organization.service.PositionService;
+import java.time.Clock;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.dao.DataAccessException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -28,13 +35,18 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmployeeMapper mapper;
     private final DepartmentService departments;
     private final PositionService positions;
+    private final ContractService contracts;
+    private final AuthService auth;
     private final AuditService audit;
+    private final Clock clock;
 
     public EmployeeServiceImpl(EmployeeRepository employees, EmployeeWriteLock lock,
             SensitiveIdentifierHasher hasher, EmployeeMapper mapper, DepartmentService departments,
-            PositionService positions, AuditService audit) {
+            PositionService positions, ContractService contracts, AuthService auth,
+            AuditService audit, Clock clock) {
         this.employees = employees; this.lock = lock; this.hasher = hasher; this.mapper = mapper;
-        this.departments = departments; this.positions = positions; this.audit = audit;
+        this.departments = departments; this.positions = positions; this.contracts = contracts;
+        this.auth = auth; this.audit = audit; this.clock = clock;
     }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
@@ -96,6 +108,69 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
         return employees.findAll(EmployeeSpecification.matching(name, departmentId, positionId, status, visible), checked)
                 .map(mapper::toResponse);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public EmployeeResponse terminate(UUID id, TerminateEmployeeRequest request, String traceId) {
+        lock.acquire();
+        var employee = existing(id);
+        if (employee.getStatus() != EmployeeStatus.ACTIVE && employee.getStatus() != EmployeeStatus.ON_LEAVE_LONG) {
+            throw new BusinessException(ErrorCode.HRM_CONFLICT,
+                    "Không thể thôi việc nhân viên đang ở trạng thái " + employee.getStatus());
+        }
+        if (employee.getStartDate() != null && request.terminationDate().isBefore(employee.getStartDate())) {
+            throw new BusinessException(ErrorCode.HRM_VALIDATION_ERROR,
+                    "Ngày thôi việc không được trước ngày bắt đầu làm việc");
+        }
+        var before = mapper.toResponse(employee);
+        employee.terminate(request.terminationDate(), request.reason());
+        employees.flush();
+        contracts.terminateActiveForEmployee(id, request.terminationDate(), traceId);
+        if (employee.getUserId() != null) {
+            auth.deactivateUser(employee.getUserId(), traceId);
+        }
+        var after = mapper.toResponse(employee);
+        audit.record("TERMINATE", "Employee", id, before, after, traceId);
+        return after;
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public void delete(UUID id, String traceId) {
+        lock.acquire();
+        var employee = existing(id);
+        long subordinates = employees.countByManagerIdAndDeletedAtIsNull(id);
+        if (subordinates > 0) {
+            throw new BusinessException(ErrorCode.HRM_CONFLICT,
+                    "Không thể xóa nhân viên đang có " + subordinates + " cấp dưới trực tiếp chưa xóa");
+        }
+        var before = mapper.toResponse(employee);
+        employee.markDeleted(clock.instant());
+        employees.flush();
+        if (employee.getUserId() != null) {
+            auth.deactivateUser(employee.getUserId(), traceId);
+        }
+        audit.record("DELETE", "Employee", id, before,
+                Map.of("id", id, "status", employee.getStatus(), "deletedAt", employee.getDeletedAt()), traceId);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    public Page<EmployeeHistoryResponse> history(UUID id, Pageable page) {
+        var checked = EmployeePages.checkedHistory(page);
+        if (!employees.existsById(id)) {
+            throw new BusinessException(ErrorCode.HRM_RESOURCE_NOT_FOUND, "Không tìm thấy nhân viên");
+        }
+        return audit.findEntityHistory("Employee", id, checked).map(mapper::toHistoryResponse);
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    public void validateAttendanceEligibility(UUID id) {
+        var employee = existing(id);
+        if (!employee.canCheckAttendance()) {
+            throw new BusinessException(ErrorCode.ATTENDANCE_EMPLOYEE_INELIGIBLE,
+                    "Nhân viên đã thôi việc không được chấm công");
+        }
     }
 
     private String nextCode() {

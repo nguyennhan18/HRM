@@ -8,4 +8,5 @@ import java.util.UUID;
 public record EmployeeResponse(UUID id, String code, String fullName, LocalDate dateOfBirth,
         Gender gender, String personalEmail, String companyEmail, String phone, String address,
         String cccdLastFour, String bankAccountLastFour, UUID departmentId, UUID positionId,
-        UUID managerId, EmployeeStatus status, LocalDate startDate) {}
+        UUID managerId, EmployeeStatus status, LocalDate startDate,
+        LocalDate terminationDate, String terminationReason) {}

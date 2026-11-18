@@ -9,6 +9,7 @@ public interface ContractService {
     ContractResponse update(UUID id, @NotNull @Valid UpdateContractRequest request, String traceId);
     ContractResponse activate(UUID id, String traceId);
     ContractResponse terminate(UUID id, @NotNull @Valid TerminateContractRequest request, String traceId);
+    void terminateActiveForEmployee(@NotNull UUID employeeId, @NotNull java.time.LocalDate terminationDate, String traceId);
     ContractResponse get(UUID id);
     Page<ContractResponse> list(UUID employeeId, Pageable page);
     Page<ContractResponse> expiring(int days, Pageable page);

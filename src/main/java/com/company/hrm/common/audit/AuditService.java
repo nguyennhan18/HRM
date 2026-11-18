@@ -4,6 +4,8 @@ import com.company.hrm.common.entity.UuidV7Generator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -40,6 +42,11 @@ public class AuditService {
                 maskedJson(after),
                 traceId);
         return auditLogRepository.save(auditLog);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AuditLog> findEntityHistory(String entityType, UUID entityId, Pageable pageable) {
+        return auditLogRepository.findByEntityTypeAndEntityId(entityType, entityId, pageable);
     }
 
     private JsonNode maskedJson(Object payload) {

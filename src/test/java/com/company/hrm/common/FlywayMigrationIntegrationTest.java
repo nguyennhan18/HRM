@@ -24,8 +24,47 @@ class FlywayMigrationIntegrationTest extends AbstractIntegrationTest {
                 .load();
         flyway.migrate();
 
-        assertThat(flyway.info().applied()).hasSize(10);
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("10");
+        assertThat(flyway.info().applied()).hasSize(11);
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("11");
+    }
+
+    @Test
+    void should_upgrade_v10_preserve_employee_and_enforce_termination_constraints() throws Exception {
+        String schema = "termination_upgrade";
+        var configuration = Flyway.configure()
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .schemas(schema).defaultSchema(schema).locations("classpath:db/migration");
+        configuration.target("10").load().migrate();
+        try (var connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             var statement = connection.createStatement()) {
+            connection.setSchema(schema);
+            statement.executeUpdate("""
+                    insert into employees(id,code,full_name,status,start_date,created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000004','NV000001','Nhân viên mẫu','ACTIVE','2026-06-01',
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """);
+            configuration.target("11").load().migrate();
+            try (var rows = statement.executeQuery("select count(*) from employees where code='NV000001'")) {
+                rows.next(); assertThat(rows.getInt(1)).isEqualTo(1);
+            }
+            for (String invalidSql : java.util.List.of(
+                    "update employees set termination_date='2026-06-15', termination_reason='Nghỉ' where code='NV000001'",
+                    "update employees set status='TERMINATED', termination_date='2026-06-15', termination_reason='   ' where code='NV000001'",
+                    "update employees set status='TERMINATED', termination_date='2026-05-31', termination_reason='Nghỉ' where code='NV000001'",
+                    "update employees set status='TERMINATED', termination_date='2026-06-15' where code='NV000001'")) {
+                org.assertj.core.api.Assertions.assertThatThrownBy(() -> statement.executeUpdate(invalidSql))
+                        .isInstanceOf(java.sql.SQLException.class);
+            }
+            statement.executeUpdate("""
+                    update employees set status='TERMINATED', termination_date='2026-06-15', termination_reason='Nghỉ việc'
+                    where code='NV000001'
+                    """);
+            try (var rows = statement.executeQuery("select status, termination_reason from employees where code='NV000001'")) {
+                rows.next();
+                assertThat(rows.getString(1)).isEqualTo("TERMINATED");
+                assertThat(rows.getString(2)).isEqualTo("Nghỉ việc");
+            }
+        }
     }
 
     @Test

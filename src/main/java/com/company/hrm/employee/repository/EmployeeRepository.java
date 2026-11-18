@@ -31,6 +31,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID>, org.s
     java.util.List<UUID> visibleIds(UUID userId, boolean manager, boolean self);
 
     Optional<Employee> findByIdAndDeletedAtIsNull(UUID id);
+    long countByManagerIdAndDeletedAtIsNull(UUID managerId);
     boolean existsByCompanyEmail(String companyEmail);
     boolean existsByCccdHash(String cccdHash);
     boolean existsByPositionId(UUID positionId);

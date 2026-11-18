@@ -6,6 +6,7 @@ import org.springframework.data.domain.*;
 import org.springframework.data.jpa.repository.*;
 public interface ContractRepository extends JpaRepository<Contract, UUID> {
     Optional<Contract> findByIdAndDeletedAtIsNull(UUID id);
+    List<Contract> findByEmployeeIdAndStatusAndDeletedAtIsNull(UUID employeeId, ContractStatus status);
     Page<Contract> findByEmployeeIdAndDeletedAtIsNull(UUID employeeId, Pageable page);
     Page<Contract> findByStatusAndDeletedAtIsNullAndEndDateBetween(
             ContractStatus status, LocalDate from, LocalDate to, Pageable page);

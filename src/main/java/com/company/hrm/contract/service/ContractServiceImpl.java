@@ -82,6 +82,24 @@ public class ContractServiceImpl implements ContractService {
         c.terminate(r.endDate());
         return save(c, "TERMINATE", before, List.of("endDate", "status"), traceId);
     }
+    @PreAuthorize("hasAnyRole('ADMIN','HR')")
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public void terminateActiveForEmployee(UUID employeeId, LocalDate terminationDate, String traceId) {
+        var activeContracts = contracts.findByEmployeeIdAndStatusAndDeletedAtIsNull(employeeId, ContractStatus.ACTIVE);
+        for (var c : activeContracts) {
+            if (terminationDate.isBefore(c.getStartDate())) {
+                throw new BusinessException(ErrorCode.HRM_CONFLICT,
+                        "Ngày thôi việc không được trước ngày bắt đầu hợp đồng đang hiệu lực");
+            }
+        }
+        for (var c : activeContracts) {
+            var before = snapshot(c);
+            LocalDate effectiveEnd = (c.getEndDate() == null || c.getEndDate().isAfter(terminationDate))
+                    ? terminationDate : c.getEndDate();
+            c.terminate(effectiveEnd);
+            save(c, "TERMINATE", before, List.of("endDate", "status"), traceId);
+        }
+    }
     @PreAuthorize("hasAnyRole('ADMIN','HR','EMPLOYEE')")
     public ContractResponse get(UUID id) {
         var c = existing(id);

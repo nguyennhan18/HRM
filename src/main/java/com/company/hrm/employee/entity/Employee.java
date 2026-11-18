@@ -34,6 +34,9 @@ public class Employee extends BaseEntity {
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
     private EmployeeStatus status = EmployeeStatus.DRAFT;
     private LocalDate startDate;
+    private LocalDate terminationDate;
+    @Column(length = 500)
+    private String terminationReason;
     private Instant deletedAt;
 
     protected Employee() {}
@@ -52,6 +55,18 @@ public class Employee extends BaseEntity {
     }
 
     public void changeManager(UUID managerId) { this.managerId = managerId; }
+
+    public void terminate(LocalDate terminationDate, String reason) {
+        this.status = EmployeeStatus.TERMINATED;
+        this.terminationDate = terminationDate;
+        this.terminationReason = reason;
+    }
+
+    public void markDeleted(Instant deletedAt) { this.deletedAt = deletedAt; }
+
+    public boolean canCheckAttendance() {
+        return deletedAt == null && status != EmployeeStatus.TERMINATED;
+    }
 
     @Override public boolean equals(Object other) {
         if (this == other) return true;

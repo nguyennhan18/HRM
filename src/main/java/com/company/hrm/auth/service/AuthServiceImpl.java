@@ -122,6 +122,22 @@ public class AuthServiceImpl implements AuthService {
     public Set<String> roles(UUID user) {
         return users.findRoleCodesById(user);
     }
+    @Override @PreAuthorize("hasAnyRole('ADMIN', 'HR')")
+    public void deactivateUser(UUID userId, String traceId) {
+        User user = users.lockById(userId).orElseThrow(() ->
+                new BusinessException(ErrorCode.HRM_RESOURCE_NOT_FOUND, "Không tìm thấy tài khoản người dùng"));
+        boolean wasEnabled = user.isEnabled();
+        user.disable();
+        var userTokens = tokens.findByUserId(userId);
+        long revokedCount = userTokens.stream().filter(t -> !t.isRevoked()).count();
+        userTokens.forEach(AuthToken::revoke);
+        users.flush();
+        tokens.flush();
+        audit.record("USER_DEACTIVATED", "User", userId,
+                Map.of("enabled", wasEnabled),
+                Map.of("enabled", false, "revokedTokens", revokedCount),
+                traceId);
+    }
     private String randomToken() {
         byte[] bytes=new byte[32]; random.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);

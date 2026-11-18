@@ -38,7 +38,8 @@ Ngoài phạm vi (làm sau, chỉ khi người dùng yêu cầu): tuyển dụng
 | Duyệt đơn bước 1 | | | x | |
 | Duyệt đơn bước 2, khóa kỳ công | x | x | | |
 | Tính/duyệt lương | x | x (tính) | | |
-| Xem audit log | x | | | |
+| Xem lịch sử hồ sơ nhân viên | x | x | | |
+| Xem audit log toàn hệ thống | x | | | |
 
 ## F. Các phase và task
 

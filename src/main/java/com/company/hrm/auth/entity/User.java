@@ -35,6 +35,7 @@ public class User extends BaseEntity {
     public void lockUntil(java.time.Instant until) { lockedUntil = until; }
     public void clearFailures() { failedAttempts = 0; lockedUntil = null; }
     public void changePassword(String hash) { passwordHash = hash; clearFailures(); }
+    public void disable() { enabled = false; clearFailures(); }
 
     @ManyToMany
     @JoinTable(name = "user_roles",

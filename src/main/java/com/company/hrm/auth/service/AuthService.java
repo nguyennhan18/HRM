@@ -10,5 +10,6 @@ public interface AuthService {
     void reset(Reset request);
     java.util.Set<String> roles(UUID user);
     boolean active(UUID user, UUID family);
+    void deactivateUser(UUID user, String traceId);
 }
 
