@@ -64,11 +64,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({ObjectOptimisticLockingFailureException.class, DataIntegrityViolationException.class})
     ProblemDetail handleConflict(RuntimeException exception, HttpServletRequest request) {
         for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
-            if (cause instanceof java.sql.SQLException sql && "23P01".equals(sql.getSQLState())) {
-                if (sql.getMessage() != null && sql.getMessage().contains("ex_employee_shifts_overlap")) {
-                    return problem(ErrorCode.SHIFT_ASSIGNMENT_OVERLAP, "Phân ca nhân viên bị trùng khoảng thời gian", request);
+            if (cause instanceof java.sql.SQLException sql) {
+                if ("23P01".equals(sql.getSQLState())) {
+                    if (sql.getMessage() != null && sql.getMessage().contains("ex_employee_shifts_overlap")) {
+                        return problem(ErrorCode.SHIFT_ASSIGNMENT_OVERLAP, "Phân ca nhân viên bị trùng khoảng thời gian", request);
+                    }
+                    return problem(ErrorCode.CONTRACT_OVERLAP, "Hiệu lực hợp đồng chồng lấn", request);
                 }
-                return problem(ErrorCode.CONTRACT_OVERLAP, "Hiệu lực hợp đồng chồng lấn", request);
+                if ("23505".equals(sql.getSQLState())
+                        && sql.getMessage() != null
+                        && sql.getMessage().contains("uq_attendance_records_employee_date")) {
+                    return problem(
+                            ErrorCode.ATTENDANCE_DUPLICATE_CHECK_IN,
+                            "Nhân viên đã check-in trong ngày công này",
+                            request);
+                }
             }
         }
         return problem(ErrorCode.HRM_CONFLICT, "Dữ liệu đã được thay đổi hoặc đang xung đột", request);

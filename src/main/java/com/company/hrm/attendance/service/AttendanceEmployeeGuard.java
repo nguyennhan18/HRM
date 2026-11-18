@@ -8,6 +8,10 @@ public interface AttendanceEmployeeGuard {
 
     void lockAndValidate(UUID employeeId);
 
+    UUID requireActiveEmployeeForUser(UUID userId);
+
+    void requireActiveEmployee(UUID employeeId);
+
     void requireExisting(UUID employeeId);
 
     List<UUID> visibleEmployeeIds(UUID userId, boolean manager, boolean employee);

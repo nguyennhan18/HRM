@@ -24,8 +24,88 @@ class FlywayMigrationIntegrationTest extends AbstractIntegrationTest {
                 .load();
         flyway.migrate();
 
-        assertThat(flyway.info().applied()).hasSize(14);
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("14");
+        assertThat(flyway.info().applied()).hasSize(15);
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("15");
+    }
+
+    @Test
+    void should_upgrade_v14_to_v15_and_enforce_attendance_record_constraints() throws Exception {
+        String schema = "attendance_records_upgrade";
+        var configuration = Flyway.configure()
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .schemas(schema).defaultSchema(schema).locations("classpath:db/migration");
+        configuration.target("14").load().migrate();
+        try (var connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             var statement = connection.createStatement()) {
+            connection.setSchema(schema);
+            statement.executeUpdate("""
+                    insert into employees(id,code,full_name,status,start_date,created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000008','NV000001','Nhân viên chấm công','ACTIVE','2026-06-01',
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """);
+            configuration.target("15").load().migrate();
+            try (var rows = statement.executeQuery("select count(*) from employees where code='NV000001'")) {
+                rows.next();
+                assertThat(rows.getInt(1)).isEqualTo(1);
+            }
+            statement.executeUpdate("""
+                    insert into attendance_records(id,employee_id,shift_id,work_date,check_in_at,check_in_source,
+                        check_out_at,check_out_source,status,created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000021','00000000-0000-4000-8000-000000000008',
+                        '019c9e00-0000-7000-8000-000000000301','2026-06-01',
+                        '2026-06-01T01:00:00Z','WEB',null,null,'MISSING_CHECKOUT',
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """);
+            for (String invalidSql : java.util.List.of(
+                    // Duplicate (employee_id, work_date) -> 23505
+                    """
+                    insert into attendance_records(id,employee_id,shift_id,work_date,check_in_at,check_in_source,
+                        check_out_at,check_out_source,status,created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000022','00000000-0000-4000-8000-000000000008',
+                        '019c9e00-0000-7000-8000-000000000301','2026-06-01',
+                        '2026-06-01T01:05:00Z','WEB',null,null,'MISSING_CHECKOUT',
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """,
+                    // Invalid check_in_source -> 23514
+                    """
+                    insert into attendance_records(id,employee_id,shift_id,work_date,check_in_at,check_in_source,
+                        check_out_at,check_out_source,status,created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000023','00000000-0000-4000-8000-000000000008',
+                        '019c9e00-0000-7000-8000-000000000301','2026-06-02',
+                        '2026-06-02T01:00:00Z','SMS',null,null,'MISSING_CHECKOUT',
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """,
+                    // check_out without check_in -> 23514
+                    """
+                    insert into attendance_records(id,employee_id,shift_id,work_date,check_in_at,check_in_source,
+                        check_out_at,check_out_source,status,created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000024','00000000-0000-4000-8000-000000000008',
+                        '019c9e00-0000-7000-8000-000000000301','2026-06-03',
+                        null,null,'2026-06-03T10:00:00Z','WEB','PRESENT',
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """,
+                    // check_out < check_in -> 23514
+                    """
+                    insert into attendance_records(id,employee_id,shift_id,work_date,check_in_at,check_in_source,
+                        check_out_at,check_out_source,status,created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000025','00000000-0000-4000-8000-000000000008',
+                        '019c9e00-0000-7000-8000-000000000301','2026-06-04',
+                        '2026-06-04T09:00:00Z','WEB','2026-06-04T08:00:00Z','WEB','PRESENT',
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """,
+                    // Invalid status -> 23514
+                    """
+                    insert into attendance_records(id,employee_id,shift_id,work_date,check_in_at,check_in_source,
+                        check_out_at,check_out_source,status,created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000026','00000000-0000-4000-8000-000000000008',
+                        '019c9e00-0000-7000-8000-000000000301','2026-06-05',
+                        '2026-06-05T01:00:00Z','WEB',null,null,'UNKNOWN',
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """)) {
+                org.assertj.core.api.Assertions.assertThatThrownBy(() -> statement.executeUpdate(invalidSql))
+                        .isInstanceOf(java.sql.SQLException.class);
+            }
+        }
     }
 
     @Test

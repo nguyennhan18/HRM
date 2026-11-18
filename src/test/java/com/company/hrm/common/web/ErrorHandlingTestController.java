@@ -45,6 +45,12 @@ class ErrorHandlingTestController {
                 new java.sql.SQLException("ERROR: conflicting key value violates exclusion constraint \"ex_employee_shifts_overlap\"", "23P01"));
     }
 
+    @GetMapping("/attendance-duplicate")
+    void attendanceDuplicate() {
+        throw new org.springframework.dao.DataIntegrityViolationException("hidden DB detail",
+                new java.sql.SQLException("ERROR: duplicate key value violates unique constraint \"uq_attendance_records_employee_date\"", "23505"));
+    }
+
     @GetMapping("/unexpected")
     void unexpected() {
         throw new IllegalStateException("sensitive internal detail");

@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration"})
 @AutoConfigureMockMvc
 class DevSecurityTest {
+    @MockBean com.company.hrm.attendance.repository.AttendanceRecordRepository attendanceRecords;
     @MockBean com.company.hrm.attendance.repository.ShiftRepository shifts;
     @MockBean com.company.hrm.attendance.repository.AttendancePolicyRepository attendancePolicies;
     @MockBean com.company.hrm.attendance.repository.HolidayRepository holidays;

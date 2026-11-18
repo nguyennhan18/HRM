@@ -98,6 +98,10 @@ public class Employee extends BaseEntity {
         return deletedAt == null && status != EmployeeStatus.TERMINATED;
     }
 
+    public boolean isActiveForAttendance() {
+        return deletedAt == null && status == EmployeeStatus.ACTIVE;
+    }
+
     @Override public boolean equals(Object other) {
         if (this == other) return true;
         return other instanceof Employee employee && getId() != null && getId().equals(employee.getId());
