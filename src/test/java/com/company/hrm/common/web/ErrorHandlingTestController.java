@@ -39,6 +39,12 @@ class ErrorHandlingTestController {
                 new java.sql.SQLException("hidden DB detail", "23P01"));
     }
 
+    @GetMapping("/shift-overlap")
+    void shiftOverlap() {
+        throw new org.springframework.dao.DataIntegrityViolationException("hidden DB detail",
+                new java.sql.SQLException("ERROR: conflicting key value violates exclusion constraint \"ex_employee_shifts_overlap\"", "23P01"));
+    }
+
     @GetMapping("/unexpected")
     void unexpected() {
         throw new IllegalStateException("sensitive internal detail");

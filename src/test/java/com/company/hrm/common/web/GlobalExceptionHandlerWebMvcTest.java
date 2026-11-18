@@ -68,6 +68,10 @@ class GlobalExceptionHandlerWebMvcTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code", is("CONTRACT_OVERLAP")))
                 .andExpect(jsonPath("$.detail", is("Hiệu lực hợp đồng chồng lấn")));
+        mockMvc.perform(get("/test/errors/shift-overlap"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is("SHIFT_ASSIGNMENT_OVERLAP")))
+                .andExpect(jsonPath("$.detail", is("Phân ca nhân viên bị trùng khoảng thời gian")));
     }
 
     @Test

@@ -24,8 +24,91 @@ class FlywayMigrationIntegrationTest extends AbstractIntegrationTest {
                 .load();
         flyway.migrate();
 
-        assertThat(flyway.info().applied()).hasSize(12);
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("12");
+        assertThat(flyway.info().applied()).hasSize(14);
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("14");
+    }
+
+    @Test
+    void should_upgrade_v12_with_existing_employee_to_v14_and_verify_seeds_and_constraints() throws Exception {
+        String schema = "attendance_upgrade";
+        var configuration = Flyway.configure()
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .schemas(schema).defaultSchema(schema).locations("classpath:db/migration");
+        configuration.target("12").load().migrate();
+        try (var connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             var statement = connection.createStatement()) {
+            connection.setSchema(schema);
+            statement.executeUpdate("""
+                    insert into employees(id,code,full_name,status,start_date,created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000007','NV000001','Nhân viên nâng cấp','ACTIVE','2026-06-01',
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """);
+            configuration.target("14").load().migrate();
+            try (var rows = statement.executeQuery("select count(*) from employees where code='NV000001'")) {
+                rows.next();
+                assertThat(rows.getInt(1)).isEqualTo(1);
+            }
+            try (var rows = statement.executeQuery("select code, overnight, is_default from shifts order by code")) {
+                assertThat(rows.next()).isTrue();
+                assertThat(rows.getString(1)).isEqualTo("HC");
+                assertThat(rows.getBoolean(2)).isFalse();
+                assertThat(rows.getBoolean(3)).isTrue();
+                assertThat(rows.next()).isTrue();
+                assertThat(rows.getString(1)).isEqualTo("NIGHT");
+                assertThat(rows.getBoolean(2)).isTrue();
+                assertThat(rows.getBoolean(3)).isFalse();
+            }
+            try (var rows = statement.executeQuery("""
+                    select code, late_grace_minutes, early_leave_grace_minutes, rounding_step_minutes,
+                           rounding_mode, half_day_threshold_minutes, min_full_day_minutes, is_default
+                    from attendance_policies
+                    """)) {
+                assertThat(rows.next()).isTrue();
+                assertThat(rows.getString(1)).isEqualTo("DEFAULT");
+                assertThat(rows.getInt(2)).isEqualTo(15);
+                assertThat(rows.getInt(3)).isEqualTo(0);
+                assertThat(rows.getInt(4)).isEqualTo(15);
+                assertThat(rows.getString(5)).isEqualTo("NEAREST");
+                assertThat(rows.getInt(6)).isEqualTo(240);
+                assertThat(rows.getInt(7)).isEqualTo(480);
+                assertThat(rows.getBoolean(8)).isTrue();
+            }
+            statement.executeUpdate("""
+                    insert into employee_shifts(id,employee_id,shift_id,assignment_type,start_date,end_date,
+                        created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000010','00000000-0000-4000-8000-000000000007',
+                        '019c9e00-0000-7000-8000-000000000301','DEFAULT','2026-06-01',null,
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """);
+            for (String invalidSql : java.util.List.of(
+                    // Overlapping open-ended DEFAULT assignment -> 23P01
+                    """
+                    insert into employee_shifts(id,employee_id,shift_id,assignment_type,start_date,end_date,
+                        created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000011','00000000-0000-4000-8000-000000000007',
+                        '019c9e00-0000-7000-8000-000000000302','DEFAULT','2026-06-15','2026-06-30',
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """,
+                    // WEEKLY exceeding 7 days (end_date - start_date = 7 > 6) -> 23514
+                    """
+                    insert into employee_shifts(id,employee_id,shift_id,assignment_type,start_date,end_date,
+                        created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000012','00000000-0000-4000-8000-000000000007',
+                        '019c9e00-0000-7000-8000-000000000302','WEEKLY','2026-06-01','2026-06-08',
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """,
+                    // DAILY with start_date <> end_date -> 23514
+                    """
+                    insert into employee_shifts(id,employee_id,shift_id,assignment_type,start_date,end_date,
+                        created_at,updated_at,created_by,updated_by,version)
+                    values ('00000000-0000-4000-8000-000000000013','00000000-0000-4000-8000-000000000007',
+                        '019c9e00-0000-7000-8000-000000000302','DAILY','2026-06-01','2026-06-02',
+                        current_timestamp,current_timestamp,'test','test',0)
+                    """)) {
+                org.assertj.core.api.Assertions.assertThatThrownBy(() -> statement.executeUpdate(invalidSql))
+                        .isInstanceOf(java.sql.SQLException.class);
+            }
+        }
     }
 
     @Test
